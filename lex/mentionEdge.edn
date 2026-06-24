@@ -1,0 +1,16 @@
+{:lexicon 1
+ :id "com.etzhayyim.kawaraban.mentionEdge"
+ :defs
+ {:main
+  {:type "record"
+   :key "tid"
+   :record
+   {:type "object"
+    :required ["mentionId" "article" "target" "targetKind" "role"]
+    :properties
+    {:mentionId  {:type "string" :description "→ :news.mention/id"}
+     :article    {:type "string" :description "→ :news.article/id"}
+     :target     {:type "string" :description "did:web actor OR org.*/gov.* entity id — who this article connects to (the G11 wire endpoint)"}
+     :targetKind {:type "string" :enum ["actor" "entity"]}
+     :role       {:type "string" :enum ["subject" "source" "mentioned" "affected" "responding"]
+                  :description "how the target relates — observational ONLY, never an accusation (watari/watatsuna resilience-not-target precedent)"}}}}}}

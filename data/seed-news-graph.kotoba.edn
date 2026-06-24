@@ -1,0 +1,102 @@
+;; kawaraban 瓦版 — seed news-medium graph (ADR-2606061900)
+;; ============================================================================
+;; A BOUNDED, :representative ILLUSTRATIVE seed — NOT live coverage and NOT a real
+;; capture of any specific article. Every node is tagged :representative (G5).
+;; Headlines are neutral, evergreen, illustrative placeholders with example URLs;
+;; they are NOT quotations of real published stories and assert nothing about real
+;; events. Absence of an outlet/article means "not yet ingested", never "did not
+;; happen in the world".
+;;
+;; TWO ARTICLE KINDS (G11 — the medium gate):
+;;   :mirror      — a real outlet's PUBLIC facing page: headline + canonical url +
+;;                  bounded fair-use excerpt + outlet. NEVER the body (G4), NEVER a
+;;                  verdict (G1).
+;;   :actor-event — a first-party etzhayyim actor's own Datom as-of event projected
+;;                  into the matching 面 (the actor-to-actor medium). Carries
+;;                  source-actor + source-tid (provenance back to the canonical
+;;                  event). NEVER speaks AS the actor (G9) — it observes it.
+;;
+;; Only PUBLIC / open facing outlets are mirrored (G4): public broadcasters + wire
+;; agencies + open newspapers. Bloomberg / Refinitiv / paywalled terminals are
+;; EXCLUDED by construction (:outlet/access has no :paywall member — read the
+;; public page, link to it; kanjo §2(c) anti-gatekeeping precedent).
+;;
+;; The 面 (sections) mirror real news-media sectioning. The :news.wire/* rows are
+;; the connective config: which first-party actor feeds which 面. The
+;; :news.mention/* edges are the actor-to-actor wire itself — the article ×
+;; mention × 面 graph is the medium.
+;; ============================================================================
+
+[;; ───────────────────────────── OUTLETS (public facing pages only) ─────────────────────────────
+ {:news.outlet/id "outlet.nhk"       :news.outlet/name "NHK"                :news.outlet/country "JP" :news.outlet/lang ["ja" "en"] :news.outlet/kind :public-broadcaster :news.outlet/homepage "https://www3.nhk.or.jp/" :news.outlet/access :open :news.outlet/sourcing :representative}
+ {:news.outlet/id "outlet.reuters"   :news.outlet/name "Reuters"            :news.outlet/country "GB" :news.outlet/lang ["en"]      :news.outlet/kind :wire-agency        :news.outlet/homepage "https://www.reuters.com/" :news.outlet/access :open :news.outlet/sourcing :representative}
+ {:news.outlet/id "outlet.ap"        :news.outlet/name "Associated Press"   :news.outlet/country "US" :news.outlet/lang ["en"]      :news.outlet/kind :wire-agency        :news.outlet/homepage "https://apnews.com/" :news.outlet/access :open :news.outlet/sourcing :representative}
+ {:news.outlet/id "outlet.afp"       :news.outlet/name "Agence France-Presse" :news.outlet/country "FR" :news.outlet/lang ["fr" "en"] :news.outlet/kind :wire-agency      :news.outlet/homepage "https://www.afp.com/" :news.outlet/access :open :news.outlet/sourcing :representative}
+ {:news.outlet/id "outlet.guardian"  :news.outlet/name "The Guardian"       :news.outlet/country "GB" :news.outlet/lang ["en"]      :news.outlet/kind :newspaper          :news.outlet/homepage "https://www.theguardian.com/" :news.outlet/access :open :news.outlet/sourcing :representative}
+ {:news.outlet/id "outlet.aljazeera" :news.outlet/name "Al Jazeera"         :news.outlet/country "QA" :news.outlet/lang ["en" "ar"] :news.outlet/kind :public-broadcaster :news.outlet/homepage "https://www.aljazeera.com/" :news.outlet/access :open :news.outlet/sourcing :representative}
+ {:news.outlet/id "outlet.asahi"     :news.outlet/name "朝日新聞"            :news.outlet/country "JP" :news.outlet/lang ["ja"]      :news.outlet/kind :newspaper          :news.outlet/homepage "https://www.asahi.com/" :news.outlet/access :registration-wall :news.outlet/sourcing :representative}
+
+ ;; ───────────────────────────── 面 SECTIONS (mirror real news-media sectioning) ─────────────────────────────
+ {:news.section/id "sec.front"         :news.section/men :front         :news.section/name-ja "一面"       :news.section/name-en "Front Page"}
+ {:news.section/id "sec.politics"      :news.section/men :politics      :news.section/name-ja "政治"       :news.section/name-en "Politics"}
+ {:news.section/id "sec.economy"       :news.section/men :economy       :news.section/name-ja "経済"       :news.section/name-en "Economy"}
+ {:news.section/id "sec.international"  :news.section/men :international  :news.section/name-ja "国際"       :news.section/name-en "International"}
+ {:news.section/id "sec.society"       :news.section/men :society       :news.section/name-ja "社会"       :news.section/name-en "Society"}
+ {:news.section/id "sec.culture"       :news.section/men :culture       :news.section/name-ja "文化"       :news.section/name-en "Culture"}
+ {:news.section/id "sec.science"       :news.section/men :science       :news.section/name-ja "科学"       :news.section/name-en "Science"}
+ {:news.section/id "sec.sports"        :news.section/men :sports        :news.section/name-ja "スポーツ"   :news.section/name-en "Sports"}
+ {:news.section/id "sec.local"         :news.section/men :local         :news.section/name-ja "地域"       :news.section/name-en "Local"}
+ {:news.section/id "sec.opinion"       :news.section/men :opinion       :news.section/name-ja "オピニオン" :news.section/name-en "Opinion"}
+
+ ;; ───────────────────────────── ACTOR → 面 WIRES (the connective medium config) ─────────────────────────────
+ {:news.wire/id "wire.danjo"     :news.wire/actor "did:web:etzhayyim.com:actor:danjo"     :news.wire/section "sec.politics"      :news.wire/basis "public-accountability oversight → 政治"}
+ {:news.wire/id "wire.ooyake"    :news.wire/actor "did:web:etzhayyim.com:actor:ooyake"    :news.wire/section "sec.politics"      :news.wire/basis "government atlas → 政治"}
+ {:news.wire/id "wire.kanae"     :news.wire/actor "did:web:etzhayyim.com:actor:kanae"     :news.wire/section "sec.economy"       :news.wire/basis "fiscal-flow visualization → 経済"}
+ {:news.wire/id "wire.kanjo"     :news.wire/actor "did:web:etzhayyim.com:actor:kanjo"     :news.wire/section "sec.economy"       :news.wire/basis "corporate financial disclosure → 経済"}
+ {:news.wire/id "wire.kabuto"    :news.wire/actor "did:web:etzhayyim.com:actor:kabuto"    :news.wire/section "sec.economy"       :news.wire/basis "supply-chain concentration → 経済"}
+ {:news.wire/id "wire.watari"    :news.wire/actor "did:web:etzhayyim.com:actor:watari"    :news.wire/section "sec.international" :news.wire/basis "live ship/aircraft chokepoint transit → 国際"}
+ {:news.wire/id "wire.watatsuna" :news.wire/actor "did:web:etzhayyim.com:actor:watatsuna" :news.wire/section "sec.international" :news.wire/basis "submarine-cable chokepoint load → 国際"}
+ {:news.wire/id "wire.mitooshi"  :news.wire/actor "did:web:etzhayyim.com:actor:mitooshi"  :news.wire/section "sec.international" :news.wire/basis "chokepoint transit/load forecast → 国際"}
+ {:news.wire/id "wire.kataribe"  :news.wire/actor "did:web:etzhayyim.com:actor:kataribe"  :news.wire/section "sec.culture"       :news.wire/basis "press / publishing / translation → 文化"}
+
+ ;; ───────────────────────────── ARTICLES — :mirror (real outlet, link-out) ─────────────────────────────
+ {:news.article/id "art.m1" :news.article/kind :mirror :news.article/section "sec.international" :news.article/outlet "outlet.nhk"       :news.article/url "https://www3.nhk.or.jp/news/example-strait" :news.article/headline "Shipping flow near a key strait under watch" :news.article/excerpt "Authorities reported closer monitoring of vessel movements through a major strait this week." :news.article/lang "en" :news.article/as-of 1749250800 :news.article/sourcing :representative}
+ {:news.article/id "art.m2" :news.article/kind :mirror :news.article/section "sec.economy"       :news.article/outlet "outlet.reuters"   :news.article/url "https://www.reuters.com/markets/example-policy" :news.article/headline "Central banks signal a policy review cycle" :news.article/excerpt "Several central banks indicated they would review policy settings in the coming quarter." :news.article/lang "en" :news.article/as-of 1749247200 :news.article/sourcing :representative}
+ {:news.article/id "art.m3" :news.article/kind :mirror :news.article/section "sec.international"  :news.article/outlet "outlet.ap"        :news.article/url "https://apnews.com/article/example-cable" :news.article/headline "Repair vessel dispatched to undersea cable fault" :news.article/excerpt "A cable-repair vessel was dispatched after operators flagged a fault on an undersea link." :news.article/lang "en" :news.article/as-of 1749243600 :news.article/sourcing :representative}
+ {:news.article/id "art.m4" :news.article/kind :mirror :news.article/section "sec.society"        :news.article/outlet "outlet.guardian"  :news.article/url "https://www.theguardian.com/example-food" :news.article/headline "Community food-resilience programs expand" :news.article/excerpt "Local food-resilience initiatives are expanding across several regions, organizers said." :news.article/lang "en" :news.article/as-of 1749240000 :news.article/sourcing :representative}
+ {:news.article/id "art.m5" :news.article/kind :mirror :news.article/section "sec.science"        :news.article/outlet "outlet.afp"       :news.article/url "https://www.afp.com/en/example-photonics" :news.article/headline "Open photonics research consortium publishes results" :news.article/excerpt "An open research consortium published new results on integrated photonics this month." :news.article/lang "en" :news.article/as-of 1749236400 :news.article/sourcing :representative}
+ {:news.article/id "art.m6" :news.article/kind :mirror :news.article/section "sec.politics"       :news.article/outlet "outlet.asahi"     :news.article/url "https://www.asahi.com/articles/example-budget" :news.article/headline "予算の透明性をめぐる議論が続く" :news.article/excerpt "予算の公開と透明性をめぐる議論が国会で続いている、と関係者は述べた。" :news.article/lang "ja" :news.article/as-of 1749232800 :news.article/sourcing :representative}
+ {:news.article/id "art.m7" :news.article/kind :mirror :news.article/section "sec.international"   :news.article/outlet "outlet.aljazeera" :news.article/url "https://www.aljazeera.com/news/example-chokepoint" :news.article/headline "Maritime chokepoint congestion reported easing" :news.article/excerpt "Congestion at a maritime chokepoint appeared to ease, according to port and shipping sources." :news.article/lang "en" :news.article/as-of 1749229200 :news.article/sourcing :representative}
+
+ ;; ───────────────────────────── ARTICLES — :actor-event (projected first-party Datom; the MEDIUM) ─────────────────────────────
+ {:news.article/id "art.e1" :news.article/kind :actor-event :news.article/section "sec.politics"      :news.article/source-actor "did:web:etzhayyim.com:actor:danjo"     :news.article/source-tid "danjo:obs:0xA1" :news.article/headline "danjo appended a budget-outlay discrepancy observation" :news.article/excerpt "Non-adjudicating observation: a gap between an appropriation line and its outlay record was appended to the Datom log." :news.article/lang "en" :news.article/as-of 1749250200 :news.article/sourcing :representative}
+ {:news.article/id "art.e2" :news.article/kind :actor-event :news.article/section "sec.international" :news.article/source-actor "did:web:etzhayyim.com:actor:watari"    :news.article/source-tid "watari:fix:0xB2" :news.article/headline "watari: Malacca live transit count rose to 3 vessels" :news.article/excerpt "The latest as-of fixes show three tracked vessels transiting the Malacca lane (situational, not targeting)." :news.article/lang "en" :news.article/as-of 1749249600 :news.article/sourcing :representative}
+ {:news.article/id "art.e3" :news.article/kind :actor-event :news.article/section "sec.international" :news.article/source-actor "did:web:etzhayyim.com:actor:watatsuna" :news.article/source-tid "watatsuna:rank:0xC3" :news.article/headline "watatsuna: Luzon-Strait cable load recomputed at 681 Tbps" :news.article/excerpt "Recomputed chokepoint cable load over the Luzon Strait — a resilience metric routed to redundancy, never interdiction." :news.article/lang "en" :news.article/as-of 1749249000 :news.article/sourcing :representative}
+ {:news.article/id "art.e4" :news.article/kind :actor-event :news.article/section "sec.economy"       :news.article/source-actor "did:web:etzhayyim.com:actor:kanae"     :news.article/source-tid "kanae:flow:0xD4" :news.article/headline "kanae: fiscal-flow globe updated for inter-governmental transfers" :news.article/excerpt "The fiscal-flow visualization was updated with new inter-governmental transfer edges (non-adjudicating)." :news.article/lang "en" :news.article/as-of 1749248400 :news.article/sourcing :representative}
+ {:news.article/id "art.e5" :news.article/kind :actor-event :news.article/section "sec.international" :news.article/source-actor "did:web:etzhayyim.com:actor:mitooshi"  :news.article/source-tid "mitooshi:fc:0xE5" :news.article/headline "mitooshi issued a chokepoint transit forecast (distribution)" :news.article/excerpt "A distribution-only forecast over chokepoint transit load was issued, routed to resilience planning (never a trade)." :news.article/lang "en" :news.article/as-of 1749247800 :news.article/sourcing :representative}
+
+ ;; ───────────────────────────── MENTION EDGES (the actor-to-actor wire) ─────────────────────────────
+ {:news.mention/id "mn.01" :news.mention/article "art.m1" :news.mention/target "did:web:etzhayyim.com:actor:watari"    :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.02" :news.mention/article "art.m1" :news.mention/target "org.corp.shipping"                    :news.mention/target-kind :entity :news.mention/role :mentioned}
+ {:news.mention/id "mn.03" :news.mention/article "art.m2" :news.mention/target "did:web:etzhayyim.com:actor:kanjo"     :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.04" :news.mention/article "art.m3" :news.mention/target "did:web:etzhayyim.com:actor:watatsuna" :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.05" :news.mention/article "art.m4" :news.mention/target "did:web:etzhayyim.com:actor:sanae"     :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.06" :news.mention/article "art.m4" :news.mention/target "did:web:etzhayyim.com:actor:mitsuho"   :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.07" :news.mention/article "art.m5" :news.mention/target "did:web:etzhayyim.com:actor:noroshi"   :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.08" :news.mention/article "art.m5" :news.mention/target "did:web:etzhayyim.com:actor:hotaru"    :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.09" :news.mention/article "art.m6" :news.mention/target "did:web:etzhayyim.com:actor:danjo"     :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.10" :news.mention/article "art.m6" :news.mention/target "did:web:etzhayyim.com:actor:ooyake"    :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.11" :news.mention/article "art.m7" :news.mention/target "did:web:etzhayyim.com:actor:watari"    :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.12" :news.mention/article "art.m7" :news.mention/target "did:web:etzhayyim.com:actor:watatsuna" :news.mention/target-kind :actor  :news.mention/role :affected}
+ {:news.mention/id "mn.13" :news.mention/article "art.m7" :news.mention/target "did:web:etzhayyim.com:actor:mitooshi"  :news.mention/target-kind :actor  :news.mention/role :responding}
+ {:news.mention/id "mn.14" :news.mention/article "art.e1" :news.mention/target "did:web:etzhayyim.com:actor:danjo"     :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.15" :news.mention/article "art.e1" :news.mention/target "gov.jp.mof"                           :news.mention/target-kind :entity :news.mention/role :affected}
+ {:news.mention/id "mn.16" :news.mention/article "art.e2" :news.mention/target "did:web:etzhayyim.com:actor:watari"    :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.17" :news.mention/article "art.e2" :news.mention/target "did:web:etzhayyim.com:actor:watatsuna" :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.18" :news.mention/article "art.e3" :news.mention/target "did:web:etzhayyim.com:actor:watatsuna" :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.19" :news.mention/article "art.e3" :news.mention/target "did:web:etzhayyim.com:actor:watari"    :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.20" :news.mention/article "art.e4" :news.mention/target "did:web:etzhayyim.com:actor:kanae"     :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.21" :news.mention/article "art.e4" :news.mention/target "did:web:etzhayyim.com:actor:kanjo"     :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.22" :news.mention/article "art.e5" :news.mention/target "did:web:etzhayyim.com:actor:mitooshi"  :news.mention/target-kind :actor  :news.mention/role :subject}
+ {:news.mention/id "mn.23" :news.mention/article "art.e5" :news.mention/target "did:web:etzhayyim.com:actor:watari"    :news.mention/target-kind :actor  :news.mention/role :mentioned}
+ {:news.mention/id "mn.24" :news.mention/article "art.e5" :news.mention/target "did:web:etzhayyim.com:actor:watatsuna" :news.mention/target-kind :actor  :news.mention/role :mentioned}]

@@ -1,0 +1,18 @@
+{:lexicon 1
+ :id "com.etzhayyim.kawaraban.kawarabanReview"
+ :defs
+ {:main
+  {:type "record"
+   :key "tid"
+   :record
+   {:type "object"
+    :required ["reviewId" "subjectIssue" "council" "verdict"]
+    :properties
+    {:reviewId     {:type "string"}
+     :subjectIssue {:type "string" :description "→ :news.issue/id under Council attestation"}
+     :council      {:type "string" :description "Council attestation DID (Lv6+)"}
+     :verdict      {:type "string" :enum ["approved" "rejected" "pending"]
+                    :description "Council attestation of an OUTWARD action (live ingest / live publish) — NEVER authorizes an ad, a verdict on a story, or a reader profile (those are unrepresentable, G1/G2/G3)"}
+     :gatesChecked {:type "array" :items {:type "string"}
+                    :description "the gate ids verified before an outward action (must include G7 no-server-key + G8 outward-gate)"}
+     :note         {:type "string"}}}}}}

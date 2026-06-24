@@ -1,0 +1,32 @@
+[
+  {
+    "id": "art.in1", "outlet": "outlet.reuters", "section": "sec.economy",
+    "headline": "Trade volumes steady across major corridors",
+    "excerpt": "Trade volumes held steady across major shipping corridors over the past week, analysts said.",
+    "url": "https://www.reuters.com/markets/example-trade", "lang": "en", "asOf": 1749251000, "access": "open"
+  },
+  {
+    "id": "art.in2", "outlet": "outlet.nhk", "section": "sec.society",
+    "headline": "Disaster-readiness drills held in coastal towns",
+    "excerpt": "Coastal towns held disaster-readiness drills this weekend, local officials reported.",
+    "url": "https://www3.nhk.or.jp/news/example-drill", "lang": "en", "asOf": 1749250000, "access": "open"
+  },
+  {
+    "id": "art.bad-body", "outlet": "outlet.guardian", "section": "sec.culture",
+    "headline": "A long feature with the whole body attached",
+    "body": "FULL ARTICLE TEXT THAT MUST NEVER BE STORED ... (entire copyrighted body) ...",
+    "url": "https://www.theguardian.com/example-feature", "asOf": 1749249000, "access": "open"
+  },
+  {
+    "id": "art.bad-paywall", "outlet": "outlet.terminal", "section": "sec.economy",
+    "headline": "Premium terminal-only market wrap",
+    "excerpt": "Behind a paid terminal.",
+    "url": "https://terminal.example.com/wrap", "asOf": 1749248000, "access": "paywall"
+  },
+  {
+    "id": "art.bad-verdict", "outlet": "outlet.ap", "section": "sec.politics",
+    "headline": "A claim someone wants rated true",
+    "excerpt": "...", "verdict": true,
+    "url": "https://apnews.com/example", "asOf": 1749247000, "access": "open"
+  }
+]

@@ -1,0 +1,30 @@
+{:lexicon 1
+ :id "com.etzhayyim.kawaraban.article"
+ :defs
+ {:main
+  {:type "record"
+   :key "tid"
+   :record
+   {:type "object"
+    :required ["articleId" "kind" "section" "headline" "asOf"]
+    :properties
+    {:articleId   {:type "string" :description "→ :news.article/id"}
+     :kind        {:type "string" :enum ["mirror" "actor-event"]
+                   :description "G11 INVARIANT — 'mirror' (real outlet, requires outlet+url) OR 'actor-event' (projected first-party Datom, requires sourceActor+sourceTid). 'original' is NOT an enum member: kawaraban is a medium, not a source"}
+     :section     {:type "string" :description "→ :news.section/id (the 面)"}
+     :headline    {:type "string"}
+     :excerpt     {:type "string" :maxLength 280
+                   :description "G4 — bounded fair-use quotation only; the full body is NEVER stored (see fullText below)"}
+     :url         {:type "string" :description "canonical link-out (required when kind='mirror')"}
+     :outlet      {:type "string" :description "→ :news.outlet/id (required when kind='mirror')"}
+     :sourceActor {:type "string" :description "did:web actor (required when kind='actor-event')"}
+     :sourceTid   {:type "string" :description "the source Datom tid (required when kind='actor-event') — provenance back to the canonical event"}
+     :lang        {:type "string"}
+     :asOf        {:type "integer" :description "epoch — append-only; latest = current, the stream = the trail (非終末論)"}
+     :sourcing    {:type "string" :enum ["representative" "verified"]}
+     ;; ── structural-invariant fields: const false / forbidden ──
+     :verdict           {:type "boolean" :const false :description "G1 — kawaraban never rules a report true/false (ake/danjo boundary)"}
+     :truthRating       {:type "integer" :const 0     :description "G1 — no fact-check score; mirror, not adjudicator"}
+     :fullText          {:type "boolean" :const false :description "G4 — copyright; full body is unrepresentable (headline+link+excerpt only)"}
+     :personalizedFor   {:type "boolean" :const false :description "G3 — the 面 is identical for all readers; no per-reader feed"}
+     :speakAs           {:type "boolean" :const false :description "G9 — never post AS an outlet or AS another actor (mirror invariant, ADR-2606042330)"}}}}}}

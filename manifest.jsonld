@@ -1,0 +1,117 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://etzhayyim.com/ns/actor-manifest"
+  ],
+  "@type": "ActorManifest",
+  "id": "did:web:etzhayyim.com:actor:kawaraban",
+  "name": "kawaraban",
+  "displayName": "瓦版 — News Medium (real-media mirror + actor-to-actor wire)",
+  "displayNameJa": "瓦版",
+  "displayNameEn": "Kawaraban",
+  "description": "A NEWS MEDIUM, kotoba-wasm-native, run on the Murakumo fleet. Two faces over one Datom log: (1) MIRROR — datafies the world's real news media (outlets · 面/sections · headlines · bylines · links) into the kotoba Datom log as an append-only as-of trail, matching the SURFACE (面) of actual news media (一面/政治/経済/国際/社会/文化/科学/スポーツ); (2) MEDIUM — the connective wire BETWEEN etzhayyim actors: each first-party actor's own Datom as-of events project into the matching 面 as :article/kind :actor-event, and every article carries :news.mention edges to the actors/entities it concerns, so the article×mention×面 graph IS the actor-to-actor wire (danjo finds → kawaraban carries → kanae renders; a chokepoint story links watari + watatsuna + mitooshi in one 面). The charter-clean inverse of a 'news app': a public-square mirror that links out, NEVER advertises (Charter-Rider §2), NEVER engagement-optimizes (Charter §1.13), NEVER profiles a reader (G3), NEVER republishes full copyrighted text (G4, link-out only), NEVER adjudicates truth (G1 — ake/danjo boundary), and NEVER speaks AS an outlet or another actor (G9, ADR-2606042330). Sibling boundary: kataribe 語部 IS etzhayyim's own press (a primary voice); kawaraban MIRRORS the world's press and WIRES the actors together (a medium, not a source — G11). Per ADR-2606061900.",
+  "descriptionJa": "ニュースの媒体 (medium)。kotoba-wasm ネイティブ、Murakumo fleet 上で稼働。1つの Datom log 上に2つの面: (1) ミラー — 世界の実在ニュースメディア (媒体社・面・見出し・署名・リンク) を kotoba Datom log に append-only な as-of 列として datafy し、実際のニュースメディアの面 (一面/政治/経済/国際/社会/文化/科学/スポーツ) に合わせる; (2) 媒体 — etzhayyim の actor 同士をつなぐ結線: 各 first-party actor 自身の Datom as-of イベントを該当する面へ :article/kind :actor-event として射影し、各記事は関係する actor/entity への :news.mention エッジを持つ → 記事×mention×面 のグラフが actor-to-actor の wire そのもの (danjo が発見 → kawaraban が運ぶ → kanae が描画; chokepoint の記事は watari+watatsuna+mitooshi を1つの面で結ぶ)。『ニュースアプリ』の charter-clean な反転: リンクアウトする公共広場のミラーで、広告を出さず (Charter-Rider §2)、engagement 最適化せず (Charter §1.13)、読者をプロファイルせず (G3)、著作権本文を再掲せず (G4 リンクアウトのみ)、真偽を裁定せず (G1 — ake/danjo 境界)、誰の名でも発言しない (G9, ADR-2606042330)。兄弟境界: kataribe 語部 は etzhayyim 自身のプレス (一次の声)、kawaraban は世界のプレスをミラーし actor を結線する (媒体であって源ではない — G11)。ADR-2606061900。",
+  "adr": {
+    "master": "etzhayyim:adr:2606061900",
+    "kataribeSibling": "etzhayyim:adr:2605263600",
+    "feedPostMembrane": "etzhayyim:adr:2605231902",
+    "entityMirror": "etzhayyim:adr:2606042330",
+    "murakumoOnly": "etzhayyim:adr:2605215000",
+    "noServerKey": "etzhayyim:adr:2605231525",
+    "datomCanonical": "etzhayyim:adr:2605312345",
+    "r0": "etzhayyim:adr:2606061900",
+    "r1": "reserved",
+    "r2": "reserved"
+  },
+  "tier": "Tier-B",
+  "runtime": {
+    "kind": "kotoba-wasm",
+    "component": "20-actors/kawaraban/wasm/wit/world.wit",
+    "abi": "world kawaraban-actor { export compute: func() -> string; }",
+    "note": "Content-addressed WASI Component-Model component (componentize-py, jco — ADR-2606014600). Runs browser-local (ameno) AND on donated Murakumo mesh nodes; the same CID resolves on /actor/kawaraban/did.json. No per-actor server."
+  },
+  "murakumoFleet": {
+    "note": "5 Pregel cells placed as k3s DaemonSets across the 12-tribe Murakumo fleet (ADR-2605232100). Inference (summary/translation) is Murakumo-only via LiteLLM 127.0.0.1:4000 (G6, ADR-2605215000).",
+    "placement": [
+      { "cell": "outlet_ingest", "node": "issachar" },
+      { "cell": "article_mirror", "node": "asher" },
+      { "cell": "section_route", "node": "dan" },
+      { "cell": "actor_project", "node": "naphtali" },
+      { "cell": "issue_compose", "node": "benjamin" }
+    ]
+  },
+  "scope": {
+    "phase": "R0 — ontology (00-contracts/schemas/news-medium-ontology.kotoba.edn) + 6 lexicons + 5 cells (ALL coded state machines: outlet_ingest / article_mirror / section_route / actor_project / issue_compose; every .solve() RuntimeError at R0 — live ingest/publish is G8-gated) + connective-medium routing engine (methods/route.py — the actor→面 wire table + article×mention×面 graph builder) + issue composer (methods/analyze.py — ranks a front-面 by G2 public-good signals only, emits an edition + 面 distribution + the actor-to-actor connection graph) + offline outlet normalizer (methods/ingest.py — G4 membrane refuses full-text + paywall, G8 --live gated) + kotoba-wasm WIT contract + Murakumo fleet placement + :representative seed (7 outlets / 10 面 / 12 articles / 9 actor-wires / 24 mention edges). Registered in INFRA_ACTORS → did:web:etzhayyim.com:actor:kawaraban. Design + datafication + offline composition only; NO live RSS/outlet ingest, NO live publish.",
+    "scopeBoundary": "Mirror real news media into kotoba (link-out, no full text, no verdict) + wire first-party actor Datom events into the matching 面 as the actor-to-actor medium (design-only)",
+    "exclusions": [
+      "adjudicating truth / fact-check score (G1, N1) — ake/danjo boundary",
+      "advertising / paid-placement / sponsored / engagement-ranking (G2, N2)",
+      "per-reader profile / behavioral recommendation / reader surveillance (G3, N3)",
+      "republishing full copyrighted article body (G4, N4) — headline + link + fair-use excerpt only",
+      "speaking AS an outlet or AS another actor / impersonation (G9, N5)",
+      "an :original first-person claim (G11 — kawaraban is a medium, not a source)",
+      "paywalled / proprietary-terminal feeds (G4 — only public facing pages)",
+      "live RSS/outlet ingest / live edition publish (G8 — Council Lv6+ + operator)"
+    ]
+  },
+  "cells": [
+    { "name": "outlet_ingest", "module": "kawaraban.cells.outlet_ingest", "murakumoNode": "issachar", "phase": "public-facing-page outlet + headline normalization (G4 membrane: refuses full-text / paywall; G5 provenance)", "status": "coded-state-machine", "emitsLexicon": "com.etzhayyim.kawaraban.outlet", "gates": ["G4", "G5", "G8"] },
+    { "name": "article_mirror", "module": "kawaraban.cells.article_mirror", "murakumoNode": "asher", "phase": "mirror a real article as observation (G1 no-verdict / G4 link-out / G9 no-speak-as)", "status": "coded-state-machine", "emitsLexicon": "com.etzhayyim.kawaraban.article", "gates": ["G1", "G4", "G9"] },
+    { "name": "section_route", "module": "kawaraban.cells.section_route", "murakumoNode": "dan", "phase": "route an article into its 面 (mirror real news-media sectioning); attaches :news.mention edges", "status": "coded-state-machine", "emitsLexicon": "com.etzhayyim.kawaraban.mentionEdge", "gates": ["G2", "G11"] },
+    { "name": "actor_project", "module": "kawaraban.cells.actor_project", "murakumoNode": "naphtali", "phase": "THE MEDIUM — project a first-party actor's Datom as-of event into the matching 面 as :article/kind :actor-event (feed-post membrane reuse; G7 member-signed, G11 connective)", "status": "coded-state-machine", "emitsLexicon": "com.etzhayyim.kawaraban.article", "gates": ["G7", "G9", "G11"] },
+    { "name": "issue_compose", "module": "kawaraban.cells.issue_compose", "murakumoNode": "benjamin", "phase": "compose a front-面 edition ranked by G2 public-good signals only (recency/section-fit/source-diversity/actor-relevance); G7 unsigned, G8 unpublished, G10 not-final", "status": "coded-state-machine", "emitsLexicon": "com.etzhayyim.kawaraban.issue", "gates": ["G2", "G7", "G8", "G10"] }
+  ],
+  "lexiconNamespaces": [
+    { "id": "com.etzhayyim.kawaraban.outlet", "status": "implemented", "emittedBy": ["outlet_ingest"] },
+    { "id": "com.etzhayyim.kawaraban.section", "status": "implemented", "emittedBy": ["section_route"] },
+    { "id": "com.etzhayyim.kawaraban.article", "status": "implemented", "emittedBy": ["article_mirror", "actor_project"] },
+    { "id": "com.etzhayyim.kawaraban.mentionEdge", "status": "implemented", "emittedBy": ["section_route", "actor_project"] },
+    { "id": "com.etzhayyim.kawaraban.issue", "status": "implemented", "emittedBy": ["issue_compose"] },
+    { "id": "com.etzhayyim.kawaraban.kawarabanReview", "status": "implemented", "emittedBy": ["Council attestation flow (Lv6+; never authorizes an ad, a verdict, or a reader profile)"] }
+  ],
+  "constitutionalGates": {
+    "description": "11 immutable gates per ADR-2606061900. G1 (mirror-not-adjudicator) + G2 (no-ads/no-engagement-rank) + G11 (connective-by-construction) are the structural anchors. Each gate lives in THREE places: schema :db/allowed/enum + lexicon const/enum + Python ValueError/refusal.",
+    "gates": {
+      "G1": "Mirror-not-adjudicator — :article/verdict + :article/truth-rating :db/allowed [false]; records what an outlet published, never rules truth (ake/danjo boundary)",
+      "G2": "No-ads / no-engagement-rank — :news.rank/signal excludes :paid-placement/:sponsored/:engagement/:dwell-time (Charter §1.13 + Charter-Rider §2)",
+      "G3": "No-reader-surveillance — no :reader entity; :article/personalized-for :db/allowed [false]; the 面 is identical for all (watari person-exclusion)",
+      "G4": "Copyright / link-out — :article/full-text :db/allowed [false]; headline + canonical :url + bounded fair-use :excerpt + :outlet only (kanjo §2(c))",
+      "G5": "Source-provenance-honest — :mirror requires :outlet + :url + :as-of; :representative seed flagged; fabricated coverage refused (watari freshness)",
+      "G6": "Murakumo-only — any summarization/translation via LiteLLM 127.0.0.1:4000 (ADR-2605215000)",
+      "G7": "No-server-key — actor-event projection + issue publication member/operator-signed; :server-held-key const false (ADR-2605231525)",
+      "G8": "Outward-gated — live outlet/RSS ingest + live publish = Council Lv6+ + operator (watari/mitooshi G10)",
+      "G9": "Mirror-not-impersonation — :article/speak-as :db/allowed [false]; mirrors outlets AND actors as observations, never speaks AS them (ADR-2606042330)",
+      "G10": "Non-eschatological as-of — :news.issue/final :db/allowed [false]; append-only edition trail (非終末論)",
+      "G11": "Connective-by-construction (the MEDIUM gate) — every article is :mirror (real outlet) OR :actor-event (projected first-party Datom); :original is unrepresentable; the article×mention×面 graph is the actor-to-actor wire"
+    }
+  },
+  "nonGoals": {
+    "description": "6 explicitly excluded scopes",
+    "goals": {
+      "N1": "NOT a fact-checker / truth adjudicator — no verdict, no rating (G1; ake/danjo own correction & discrepancy)",
+      "N2": "NOT an ad-funded / engagement-optimized feed — no paid placement, no addictive ranking (G2)",
+      "N3": "NOT a personalized feed — no reader profile, no behavioral recommendation, no surveillance (G3)",
+      "N4": "NOT a content republisher — headline + link + fair-use excerpt only, never the full body (G4)",
+      "N5": "NOT an impersonator — never posts AS an outlet or AS another actor (G9)",
+      "N6": "NOT a primary source — kawaraban authors no original first-person claim; it mirrors and wires (G11; kataribe is the primary voice)"
+    }
+  },
+  "roadmap": [
+    { "phase": "R0", "date": "2026-06-06", "scope": "This ADR. Ontology + 6 lexicons + 5 cells + connective-medium routing engine + issue composer + offline outlet normalizer + kotoba-wasm WIT + Murakumo fleet placement + :representative seed. Design + datafication + offline composition only; no live ingest/publish.", "gate": "ADR-2606061900 (PROPOSED)" },
+    { "phase": "R1", "date": "post-Council", "scope": "Live-but-gated public-facing-page ingest (open RSS/sitemap of public-broadcaster + wire-agency facing pages; NO paywall, NO full text); live actor-event projection wired to the feed-post membrane (ADR-2605231902); Murakumo-only neutral summary/translation. Still no ads, no reader profile, no verdict.", "gate": "Future ADR + Council Lv6+ + operator (G8)" },
+    { "phase": "R2", "date": "post-R1", "scope": "Standing news medium feeding the etzhayyim public timeline; cross-actor story clustering (an event surfaced by danjo/watari/watatsuna/mitooshi composed into one 面 with all mention edges); kami-engine 面-layout WASM render on /apps.", "gate": "Future ADR + Council Lv6+ + operator" }
+  ],
+  "references": {
+    "adr": {
+      "master": "/90-docs/adr/2606061900-kawaraban-news-medium-actor-r0.md",
+      "kataribeSibling": "/90-docs/adr/2605263600-kataribe-press-publishing-translation-r0.md",
+      "feedPostMembrane": "/90-docs/adr/2605231902-feed-post-membrane-and-feed-discover-projection.md",
+      "entityMirror": "/90-docs/adr/2606042330-entity-as-actor-society-scale-social-mirror.md",
+      "murakumoOnly": "/90-docs/adr/2605215000-etzhayyim-inference-murakumo-only-no-runpod.md",
+      "noServerKey": "/90-docs/adr/2605231525-server-side-signing-capability-boundary.md",
+      "datomCanonical": "/90-docs/adr/2605312345-kotoba-datom-first-class-canonical-state.md"
+    },
+    "schema": "/00-contracts/schemas/news-medium-ontology.kotoba.edn",
+    "seed": "/20-actors/kawaraban/data/seed-news-graph.kotoba.edn"
+  }
+}

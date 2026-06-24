@@ -1,0 +1,27 @@
+package etzhayyim:kawaraban;
+
+// The kawaraban (瓦版) actor's executable interface — a content-addressed WASI
+// Component-Model component built with componentize-py / jco (ADR-2606014600),
+// the kotoba-wasm runtime form. Same logical ABI as the tsumugi / watatsuna
+// actor cores: a single export returns the result as a JSON string.
+//
+// `compute` composes the current EDITION (front-面 digest) from the kotoba Datom
+// log: it mirrors real-media headlines into their 面, projects first-party actor
+// Datom as-of events into the matching 面 (the actor-to-actor medium), attaches
+// :news.mention edges, and ranks the 一面 by G2 public-good signals ONLY
+// (recency / section-fit / source-diversity / actor-relevance) — never by paid
+// placement or engagement.
+//
+// The component runs browser-local (ameno) AND on donated Murakumo mesh nodes;
+// the same CID resolves on /actor/kawaraban/did.json. No per-actor server.
+// Inference (any neutral summary/translation) is Murakumo-only via the host's
+// LiteLLM 127.0.0.1:4000 (G6) — NOT a capability of this component.
+//
+// What the component CANNOT do, by ABI: it returns an observational digest. It
+// has no export to publish an edition, follow a live firehose, store full text,
+// rank by engagement, profile a reader, or emit a verdict — those are
+// unrepresentable (G1/G2/G3/G4/G8) and live publication is Council Lv6+ +
+// operator gated (G8).
+world kawaraban-actor {
+  export compute: func() -> string;
+}
