@@ -1,0 +1,5 @@
+# kawaraban — sovereign actor repo
+# PRIVATE fulltext analysis buffer (G4 internal, ADR-2607010930) — never committed
+/data/ingest/fulltext-buffer/
+/.cpcache/
+/.clj-kondo/.cache/

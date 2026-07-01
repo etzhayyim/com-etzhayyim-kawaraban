@@ -43,6 +43,13 @@ charter violation.
 - **G4 copyright / link-out** — `:article/full-text` is `:db/allowed [false]`. Headline +
   link + ≤280-char excerpt + attribution only. Only **public facing pages**
   (`:outlet/access ∈ {:open :registration-wall}`) — paywall/terminal feeds unrepresentable.
+  The PUBLIC invariant (never publish / never represent full text in the public ontology)
+  is absolute and is **not** weakened by the PRIVATE `fulltext_cache` buffer
+  (ADR-2607010930, 実装 not charter): `cells/fulltext_cache/` may hold a fetched article
+  BODY for an analysis consumer (yomi 読み) in `data/ingest/fulltext-buffer/` (gitignored),
+  PRIVATELY — never transacted to the public Datom log, never projected to a 面, never
+  published; `article_mirror`'s `fullText` stays `false` in the public projection regardless.
+  Access membrane unchanged: a body is cached only for `:open`/`:registration-wall` outlets.
 - **G5 source-provenance-honest** · **G6 Murakumo-only** (LiteLLM `127.0.0.1:4000`) ·
   **G7 no-server-key** (`:server-held-key` const false; projection + publish member-signed) ·
   **G8 outward-gated** (live ingest/publish = Council Lv6+ + operator) ·
