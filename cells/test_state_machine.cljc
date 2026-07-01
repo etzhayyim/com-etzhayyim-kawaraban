@@ -1,14 +1,16 @@
 (ns kawaraban.cells.test-state-machine
   "State-machine tests for kawaraban 瓦版 cells (R0). 1:1 port of cells/test_state_machines.py
   (ADR-2606061900). outlet_ingest (G4/G5) · article_mirror (G1/G4/G9) · section_route (G2/G11) ·
-  actor_project (G7/G9/G11, the medium) · issue_compose (G2/G7/G8/G10); .solve() raises at R0."
+  actor_project (G7/G9/G11, the medium) · issue_compose (G2/G7/G8/G10) · fulltext_cache (G4
+  PRIVATE buffer, ADR-2607010930); .solve() raises at R0."
   (:require [clojure.test :refer [deftest is]]
             [clojure.string :as str]
             [kawaraban.cells.outlet-ingest.state-machine :as oi]
             [kawaraban.cells.article-mirror.state-machine :as am]
             [kawaraban.cells.section-route.state-machine :as sr]
             [kawaraban.cells.actor-project.state-machine :as ap]
-            [kawaraban.cells.issue-compose.state-machine :as ic]))
+            [kawaraban.cells.issue-compose.state-machine :as ic]
+            [kawaraban.cells.fulltext-cache.state-machine :as fc]))
 
 (defn- p [r] (get-in r ["cell_state" "phase"]))
 (defn- refusal [r] (get-in r ["cell_state" "refusal"]))
@@ -96,5 +98,21 @@
 
 ;; ── .solve() R0 guards ──
 (deftest test-all-cells-solve-raises-at-r0
-  (doseq [solve [oi/solve am/solve sr/solve ap/solve ic/solve]]
+  (doseq [solve [oi/solve am/solve sr/solve ap/solve ic/solve fc/solve]]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"R0 scaffold" (solve {})))))
+
+;; ── fulltext_cache (PRIVATE G4 buffer, ADR-2607010930) ──
+(deftest test-fulltext-cache-ok-and-stays-private
+  (let [r (fc/cache {"article_id" "a" "outlet" "outlet.nhk" "url" "https://nhk.or.jp/x"
+                     "access" "open" "body" "the body" "fetched_at" "2026-07-01T09:00Z"})]
+    (is (= "cached" (p r)))
+    (is (= false (get-in r ["cell_state" "payload" "publicProjection" "fullText"])))
+    (is (= true (get-in r ["cell_state" "payload" "private"])))))
+
+(deftest test-fulltext-cache-refuses-paywall
+  (let [r (fc/cache {"article_id" "a" "outlet" "o" "url" "u" "access" "paywall" "body" "b"})]
+    (is (= "refused" (p r))) (is (str/includes? (refusal r) "G4-access"))))
+
+(deftest test-fulltext-cache-refuses-missing-provenance
+  (let [r (fc/cache {"article_id" "a" "url" "u" "access" "open" "body" "b"})]
+    (is (= "refused" (p r))) (is (str/includes? (str/lower-case (refusal r)) "outlet"))))
