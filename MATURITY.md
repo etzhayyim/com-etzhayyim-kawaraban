@@ -1,9 +1,29 @@
 # kawaraban 瓦版 — Maturity
 
-**Stage: R1** (live-ingest + aozora-publish code-complete, default OFF) — ADR-2606061900,
-advanced by ADR-2607110200 (2026-07-10). News MEDIUM: mirror of the world's real news media
-(headline + link-out + ≤280-char fair-use excerpt) + the actor-to-actor wire. The charter-clean
-inverse of a news app. Central ingest actor of the ADR-2606161536 pipeline (`utsushie-loop`).
+**Stage: R1, live** (live-ingest + aozora-publish activated by founder/operator 2026-07-10)
+— ADR-2606061900, advanced by ADR-2607110200. News MEDIUM: mirror of the world's real news
+media (headline + link-out + ≤280-char fair-use excerpt) + the actor-to-actor wire. The
+charter-clean inverse of a news app. Central ingest actor of the ADR-2606161536 pipeline
+(`utsushie-loop`).
+
+## Live since 2026-07-10
+
+`KAWARABAN_ALLOW_LIVE_INGEST=1` was set and kawaraban's own Ed25519 identity was minted
+(`.kawaraban/identity.edn`, gitignored, did:key `z6MkeVjRzbvL4PHiEJi2SWUUdqt3cwUfY85iyntM5KThAySF`)
+by the founder. First real run: 9 outlets fetched (BBC, DW, France 24, RTHK, ABC Australia,
+NPR, PBS NewsHour, Al Jazeera, UN News), 25 real `:mirror` articles published to
+`https://pds.aozora.app` under `com.etzhayyim.apps.kawaraban` (capped at 3/outlet for the
+first activation — no flood). NHK World-Japan's guessed feed URL was wrong (returns HTML,
+not XML) and CBC timed out from this environment — both left `:verified false` with a note
+in `data/outlets/allowlist.edn` rather than guessed further. AP has no resolved feed URL at
+all (`:feed-url nil`, unresolved by design).
+
+Fixes landed while going live (found by actually running against real outlets, not
+hypothetical): `jvm-http-get` now follows redirects + sends an honest identifying
+User-Agent (BBC's feed 302-redirects http->https and was silently returning nothing);
+`parse-feed`/`rss-item->record` now also handle RSS 1.0/RDF (`<rdf:RDF>` root, `dc:date`
+instead of `pubDate` — Deutsche Welle's format); `fetch-outlet!` now catches a per-outlet
+network failure instead of letting it abort the whole batch.
 
 ## R0 → R1 (ADR-2607110200)
 
@@ -19,11 +39,11 @@ inverse of a news app. Central ingest actor of the ADR-2606161536 pipeline (`uts
   `cacao`/`aozora`/`publisher` shape), collection `com.etzhayyim.apps.kawaraban` and PDS
   `https://pds.aozora.app` matching the RAD identity journal's pre-recorded tx-4 fields.
   MockPublisher stays the default; `aozora-publisher` is opt-in.
-- **`KAWARABAN_ALLOW_LIVE_INGEST` remains unset (refused) by default.** ADR-2607110200 is the
-  Council-ADR ratification the cells' own `solve()` comments ask for, but actually flipping
-  the env var against real internet endpoints — and actually publishing to the live
-  aozora.app PDS — is a separate, explicit operational step, not something this code change
-  does on its own.
+- `KAWARABAN_ALLOW_LIVE_INGEST` is NOT hardcoded or committed anywhere in this repo — it
+  stays an operator-set environment variable (unset by default in any fresh checkout;
+  refused unless explicitly set for a given run). ADR-2607110200 is the Council-ADR
+  ratification the cells' own `solve()` comments ask for; the founder/operator then
+  separately, explicitly set it and ran a real ingest (see "Live since 2026-07-10" above).
 - All existing R0 tests unchanged and still green; `run_tests.sh` fixed to `cd` to its own
   directory (was cd-ing two levels too far up) and now also runs `test-live-fetch`.
 

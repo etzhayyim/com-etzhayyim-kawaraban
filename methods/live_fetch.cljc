@@ -110,7 +110,9 @@
 ;; ── feed-item → ingest-record shape (the string-keyed map ingest/normalize-record wants) ─
 
 (defn rss-item->record
-  "One RSS 2.0 `<item>` block -> the ingest.cljc input-record shape."
+  "One RSS 2.0 (or RSS 1.0/RDF, same <item> shape) `<item>` block -> the ingest.cljc input
+  record shape. Date falls back to Dublin Core `dc:date` (ISO-8601) when RSS 2.0's `pubDate`
+  (RFC-822) is absent -- RDF/RSS 1.0 feeds (e.g. Deutsche Welle) use dc:date instead."
   [outlet block]
   {"outlet"  (:id outlet)
    "section" (:section outlet "sec.front")
@@ -118,7 +120,7 @@
    "excerpt"  (or (first-tag-text block "description") "")
    "url"      (or (first-tag-text block "link") "")
    "lang"     (:lang outlet "en")
-   "asOf"     (parse-date->epoch (first-tag-text block "pubDate"))
+   "asOf"     (parse-date->epoch (or (first-tag-text block "pubDate") (first-tag-text block "dc:date")))
    "access"   "open"})
 
 (defn atom-entry->record
@@ -134,13 +136,18 @@
    "access"   "open"})
 
 (defn parse-feed
-  "Parse RSS 2.0 or Atom 1.0 XML text into a vector of ingest-record maps for `outlet`
-  (a map with :id/:section/:lang, see `data/outlets/allowlist.edn`). Auto-detects the feed
-  kind by looking for `<rss` vs `<feed`. Returns [] for anything unrecognized (never throws
-  — feed-format detection failure is not a charter-gate concern, it's an empty result)."
+  "Parse RSS 2.0, RSS 1.0/RDF, or Atom 1.0 XML text into a vector of ingest-record maps for
+  `outlet` (a map with :id/:section/:lang, see `data/outlets/allowlist.edn`). Auto-detects
+  the feed kind by looking for `<rss` / `<rdf:RDF` vs `<feed`. Returns [] for anything
+  unrecognized (never throws — feed-format detection failure is not a charter-gate concern,
+  it's an empty result)."
   [^String xml outlet]
   (cond
     (re-find #"(?i)<rss[\s>]" xml)
+    (mapv #(rss-item->record outlet %) (blocks xml "item"))
+
+    ;; RSS 1.0/RDF (e.g. Deutsche Welle): <rdf:RDF> root, same flat <item> shape as RSS 2.0.
+    (re-find #"(?i)<rdf:RDF[\s>]" xml)
     (mapv #(rss-item->record outlet %) (blocks xml "item"))
 
     (re-find #"(?i)<feed[\s>]" xml)
@@ -152,14 +159,19 @@
 
 #?(:clj
    (defn jvm-http-get
-     "Default fetch-fn: JDK HttpClient GET (no dependency), 10s timeout."
+     "Default fetch-fn: JDK HttpClient GET (no dependency), 10s timeout, follows redirects
+     (many outlet feed URLs 302 http->https or to a canonical host) and sends a browser-like
+     User-Agent (some outlets refuse bare/no-UA requests)."
      [^String url]
-     (let [req (-> (java.net.http.HttpRequest/newBuilder (java.net.URI/create url))
+     (let [client (-> (java.net.http.HttpClient/newBuilder)
+                      (.followRedirects java.net.http.HttpClient$Redirect/NORMAL)
+                      (.build))
+           req (-> (java.net.http.HttpRequest/newBuilder (java.net.URI/create url))
                    (.timeout (java.time.Duration/ofSeconds 10))
+                   (.header "User-Agent" "kawaraban/1.0 (+https://github.com/etzhayyim/com-etzhayyim-kawaraban; news-medium mirror bot, G4 headline+link+bounded-excerpt only)")
                    (.GET)
                    (.build))
-           resp (.send (java.net.http.HttpClient/newHttpClient) req
-                       (java.net.http.HttpResponse$BodyHandlers/ofString))]
+           resp (.send client req (java.net.http.HttpResponse$BodyHandlers/ofString))]
        (.body resp))))
 
 (defn fetch-outlet!
@@ -167,16 +179,22 @@
   ingest/normalize-batch (G1/G3/G4 gates inherited). Refuses (returns a refusal map, throws
   nothing) unless `ingest/live-allowed` — same operator-gate semantics as `ingest/-main
   --live`. `fetch-fn` is injectable (default `jvm-http-get`) so tests never touch the
-  network."
+  network. A network-level failure (timeout / DNS / RST_STREAM / a non-feed response) for
+  ONE outlet is caught and reported as `:fetch-error` — it never aborts a caller iterating
+  over many outlets (a single unreachable outlet must not take the whole batch down)."
   ([outlet] (fetch-outlet! outlet #?(:clj jvm-http-get :cljs (fn [_] ""))))
   ([outlet fetch-fn]
    (if-not (ingest/live-allowed)
      {:refused true
       :reason "live RSS/Atom fetch is Council Lv6+ + operator gated (G8, ADR-2607110200). Set KAWARABAN_ALLOW_LIVE_INGEST=1 + Council attestation to enable."}
-     (let [xml (fetch-fn (:feed-url outlet))
-           records (parse-feed xml outlet)
-           [ok refused] (ingest/normalize-batch records)]
-       {:refused false :outlet (:id outlet) :ok ok :gate-refused refused}))))
+     (try
+       (let [xml (fetch-fn (:feed-url outlet))
+             records (parse-feed xml outlet)
+             [ok refused] (ingest/normalize-batch records)]
+         {:refused false :outlet (:id outlet) :ok ok :gate-refused refused})
+       (catch #?(:clj Exception :cljs js/Error) e
+         {:refused false :outlet (:id outlet) :ok [] :gate-refused []
+          :fetch-error (#?(:clj .getMessage :cljs ex-message) e)})))))
 
 #?(:clj
    (defn load-allowlist
