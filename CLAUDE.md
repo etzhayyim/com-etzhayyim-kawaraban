@@ -63,12 +63,20 @@ charter violation.
 - `.solve()` still raises at R0 on every cell — full Pregel/fleet execution stays gated.
   **As of ADR-2607110200 (R1) the live-RSS-fetch code path exists**
   (`methods/live_fetch.cljc` + `data/outlets/allowlist.edn`) and the real aozora-publish
-  path exists (`src/kawaraban/{cacao,aozora,publisher,publish}.clj(c)`) — both are
-  code-complete and tested against local fixtures/mocks only. **Neither is enabled by
-  default**: `KAWARABAN_ALLOW_LIVE_INGEST` stays unset (refused) and `MockPublisher` stays
-  the default publisher. Flipping either against real endpoints is a separate, explicit
-  operational decision by the founder/Council — do not do it silently as part of an
-  unrelated change.
+  path exists (`src/kawaraban/{cacao,aozora,publisher,publish}.clj(c)`) — the founder/operator
+  set `KAWARABAN_ALLOW_LIVE_INGEST=1` and ran both live on 2026-07-10 (see MATURITY.md "Live
+  since 2026-07-10"). In a fresh checkout the env var is still unset by default (refused) and
+  `MockPublisher` is still the code default — real activation is always a deliberate,
+  out-of-band operator step (setting the env var + injecting a real publisher), never
+  something a code change does by itself.
+- **Per-organization mirror actors** (`src/kawaraban/mirror_actor.clj`, same-day
+  ADR-2607110200 addendum): each outlet gets its OWN self-sovereign identity
+  (`.kawaraban/mirrors/<outlet-id>.edn`, gitignored) instead of posting under kawaraban's one
+  shared root identity. `ensure-profile!` writes an `app.bsky.actor.profile` disclosing
+  "Automated, UNOFFICIAL mirror of \<outlet\> ... not affiliated with or operated by
+  \<outlet\>" BEFORE the identity ever publishes an article — this is what keeps a per-outlet
+  identity from being G9 (mirror-not-impersonation) — never skip `ensure-profile!` when
+  minting a new mirror identity.
 - Tests are `bb`-runnable (`./run_tests.sh`, cwd = repo root, uses the self-referential
   `kawaraban -> .` symlink + `bb.edn` so the `kawaraban.*`-prefixed namespaces resolve
   against this repo's flat `cells/`/`methods/` layout) for the portable `.cljc` core, and
