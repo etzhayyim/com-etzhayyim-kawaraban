@@ -1,8 +1,31 @@
 # kawaraban 瓦版 — Maturity
 
-**Stage: R0** (scaffold) — ADR-2606061900. News MEDIUM: mirror of the world's real news media
+**Stage: R1** (live-ingest + aozora-publish code-complete, default OFF) — ADR-2606061900,
+advanced by ADR-2607110200 (2026-07-10). News MEDIUM: mirror of the world's real news media
 (headline + link-out + ≤280-char fair-use excerpt) + the actor-to-actor wire. The charter-clean
 inverse of a news app. Central ingest actor of the ADR-2606161536 pipeline (`utsushie-loop`).
+
+## R0 → R1 (ADR-2607110200)
+
+- `methods/live_fetch.cljc` — RSS/Atom fetch + parse, feeds through the EXISTING
+  `ingest/normalize-record`/`normalize-batch` gates (no new gate invented). 12 tests, all
+  against local fixtures — no live network calls in this repo's test suite.
+- `data/outlets/allowlist.edn` — 12 state/public-broadcaster + non-profit press outlets
+  (NHK World-Japan, BBC, DW, France 24, RTHK, CBC, ABC Australia, NPR, PBS NewsHour, AP*, Al
+  Jazeera, UN News). Each `:verified true/false` — unverified feed URLs are best-effort and
+  MUST be confirmed before enabling live ingest for them (G5).
+- `src/kawaraban/cacao.clj` + `src/kawaraban/aozora.clj` + `src/kawaraban/publisher.cljc` +
+  `src/kawaraban/publish.cljc` — real app-aozora publish path (1:1 port of tashikame's proven
+  `cacao`/`aozora`/`publisher` shape), collection `com.etzhayyim.apps.kawaraban` and PDS
+  `https://pds.aozora.app` matching the RAD identity journal's pre-recorded tx-4 fields.
+  MockPublisher stays the default; `aozora-publisher` is opt-in.
+- **`KAWARABAN_ALLOW_LIVE_INGEST` remains unset (refused) by default.** ADR-2607110200 is the
+  Council-ADR ratification the cells' own `solve()` comments ask for, but actually flipping
+  the env var against real internet endpoints — and actually publishing to the live
+  aozora.app PDS — is a separate, explicit operational step, not something this code change
+  does on its own.
+- All existing R0 tests unchanged and still green; `run_tests.sh` fixed to `cd` to its own
+  directory (was cd-ing two levels too far up) and now also runs `test-live-fetch`.
 
 | Dimension | State |
 |---|---|

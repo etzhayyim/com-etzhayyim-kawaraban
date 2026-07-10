@@ -60,10 +60,19 @@ charter violation.
 
 ## When editing
 
-- `.solve()` raises `RuntimeError` at R0 on every cell — live execution is G8-gated. Do not
-  wire a cell to a live RSS endpoint or the firehose; that needs Council Lv6+ + operator.
-- Tests are standalone-runnable (`python3 test_*.py`) AND pytest-compatible — the repo
-  pytest plugin env is broken. Keep them so. One-command runner: `./run_tests.sh`.
+- `.solve()` still raises at R0 on every cell — full Pregel/fleet execution stays gated.
+  **As of ADR-2607110200 (R1) the live-RSS-fetch code path exists**
+  (`methods/live_fetch.cljc` + `data/outlets/allowlist.edn`) and the real aozora-publish
+  path exists (`src/kawaraban/{cacao,aozora,publisher,publish}.clj(c)`) — both are
+  code-complete and tested against local fixtures/mocks only. **Neither is enabled by
+  default**: `KAWARABAN_ALLOW_LIVE_INGEST` stays unset (refused) and `MockPublisher` stays
+  the default publisher. Flipping either against real endpoints is a separate, explicit
+  operational decision by the founder/Council — do not do it silently as part of an
+  unrelated change.
+- Tests are `bb`-runnable (`./run_tests.sh`, cwd = repo root, uses the self-referential
+  `kawaraban -> .` symlink + `bb.edn` so the `kawaraban.*`-prefixed namespaces resolve
+  against this repo's flat `cells/`/`methods/` layout) for the portable `.cljc` core, and
+  `clojure -M:test` (JVM, `deps.edn`) for the new JVM-only `.clj` I/O (`cacao`/`aozora`).
 - The actor→面 wire table lives in `methods/route.py` (`ACTOR_WIRE`). When a new first-party
   actor should feed a 面, add it there with an honest `basis`.
 

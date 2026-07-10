@@ -3,3 +3,5 @@
 /data/ingest/fulltext-buffer/
 /.cpcache/
 /.clj-kondo/.cache/
+# ADR-2607110200: kawaraban's own Ed25519 identity — NEVER commit a private key.
+/.kawaraban/
