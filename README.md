@@ -75,6 +75,10 @@ python3 methods/route.py             # print the actor→面 wire + connection g
 
 ## Status
 
-🟡 **R0** — design + datafication + offline composition only. No live RSS/outlet ingest, no
-live publish (all G8-gated → Council Lv6+ + operator). Registered in INFRA_ACTORS →
+🟢 **R1** (ADR-2607110200) — live RSS/Atom fetch (`methods/live_fetch.cljc`) and real
+app-aozora publish (`src/kawaraban/{cacao,aozora,publisher,publish}.clj(c)`) are
+code-complete and tested against local fixtures/mocks. **Both remain OFF by default** —
+`KAWARABAN_ALLOW_LIVE_INGEST` is unset (refused) and `MockPublisher` is the default
+publisher; actually enabling live network fetch or real aozora.app publish is a separate,
+explicit operational step outside this ADR. Registered in INFRA_ACTORS →
 `did:web:etzhayyim.com:actor:kawaraban`.

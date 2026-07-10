@@ -1,0 +1,151 @@
+;; kawaraban 瓦版 — live-ingest outlet allowlist (ADR-2607110200, R0->R1).
+;;
+;; G4 invariant: every entry MUST be :access :open (or :registration-wall) — never
+;; :paywall / :proprietary-terminal (ingest.cljc / outlet_ingest cell refuse those anyway;
+;; this file only lists candidates that are ALREADY public-facing by policy, not just by
+;; the runtime gate).
+;;
+;; Selection criterion (owner instruction 2026-07-10): state/public-broadcaster or
+;; non-profit/international-organization press ONLY — no commercial/ad-funded outlets.
+;;
+;; :verified true  — the :feed-url is a well-known, high-confidence public RSS/Atom
+;;                    endpoint for this outlet as of this file's authoring.
+;; :verified false — best-effort guess; MUST be confirmed against the outlet's live
+;;                    feed index / robots.txt before KAWARABAN_ALLOW_LIVE_INGEST is ever
+;;                    enabled for it (G5 source-provenance-honest — do not trust blindly).
+;;
+;; Adding an outlet: append an entry here, then add a matching :news.outlet/* record via
+;; the outlet_ingest cell (lex/outlet.edn) before it can appear in a :mirror article.
+
+[{:id "outlet.nhk-world"
+  :name "NHK World-Japan"
+  :kind "public-broadcaster"
+  :country "JP"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www3.nhk.or.jp/nhkworld/"
+  :feed-url "https://www3.nhk.or.jp/nhkworld/en/news/all.xml"
+  :verified false
+  :section "sec.international"}
+
+ {:id "outlet.bbc-world"
+  :name "BBC News — World"
+  :kind "public-broadcaster"
+  :country "GB"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.bbc.co.uk/news"
+  :feed-url "http://feeds.bbci.co.uk/news/world/rss.xml"
+  :verified true
+  :section "sec.international"}
+
+ {:id "outlet.dw"
+  :name "Deutsche Welle"
+  :kind "public-broadcaster"
+  :country "DE"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.dw.com/"
+  :feed-url "https://rss.dw.com/rdf/rss-en-all"
+  :verified true
+  :section "sec.international"}
+
+ {:id "outlet.france24"
+  :name "France 24"
+  :kind "public-broadcaster"
+  :country "FR"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.france24.com/en/"
+  :feed-url "https://www.france24.com/en/rss"
+  :verified false
+  :section "sec.international"}
+
+ {:id "outlet.rthk"
+  :name "RTHK News"
+  :kind "public-broadcaster"
+  :country "HK"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://news.rthk.hk/"
+  :feed-url "https://rthk9.rthk.hk/rthk/news/rss/e_expressnews_elocal.xml"
+  :verified false
+  :section "sec.international"}
+
+ {:id "outlet.cbc"
+  :name "CBC News — World"
+  :kind "public-broadcaster"
+  :country "CA"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.cbc.ca/news"
+  :feed-url "https://www.cbc.ca/cmlink/rss-world"
+  :verified false
+  :section "sec.international"}
+
+ {:id "outlet.abc-au"
+  :name "ABC News Australia"
+  :kind "public-broadcaster"
+  :country "AU"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.abc.net.au/news"
+  :feed-url "https://www.abc.net.au/news/feed/51120/rss.xml"
+  :verified false
+  :section "sec.international"}
+
+ {:id "outlet.npr"
+  :name "NPR — World"
+  :kind "ngo-press"
+  :country "US"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.npr.org/"
+  :feed-url "https://feeds.npr.org/1004/rss.xml"
+  :verified true
+  :section "sec.international"}
+
+ {:id "outlet.pbs-newshour"
+  :name "PBS NewsHour"
+  :kind "ngo-press"
+  :country "US"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.pbs.org/newshour/"
+  :feed-url "https://www.pbs.org/newshour/feeds/rss/headlines"
+  :verified true
+  :section "sec.society"}
+
+ {:id "outlet.ap"
+  :name "Associated Press"
+  :kind "wire-agency"
+  :country "US"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://apnews.com/"
+  :feed-url nil
+  :verified false
+  :section "sec.front"
+  :note "AP does not currently publish a straightforward public RSS endpoint (post-2020 site redesign); left unresolved (nil feed-url) rather than guessing a wrong URL. Do not enable without a confirmed source."}
+
+ {:id "outlet.aljazeera"
+  :name "Al Jazeera English"
+  :kind "public-broadcaster"
+  :country "QA"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://www.aljazeera.com/"
+  :feed-url "https://www.aljazeera.com/xml/rss/all.xml"
+  :verified true
+  :section "sec.international"}
+
+ {:id "outlet.un-news"
+  :name "UN News"
+  :kind "ngo-press"
+  :country "INT"
+  :lang ["en"]
+  :access "open"
+  :homepage "https://news.un.org/en/"
+  :feed-url "https://news.un.org/feed/subscribe/en/news/all/rss.xml"
+  :verified false
+  :section "sec.international"}]
