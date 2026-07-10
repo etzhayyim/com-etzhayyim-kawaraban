@@ -18,6 +18,33 @@ not XML) and CBC timed out from this environment — both left `:verified false`
 in `data/outlets/allowlist.edn` rather than guessed further. AP has no resolved feed URL at
 all (`:feed-url nil`, unresolved by design).
 
+## Per-organization mirror actors (owner instruction 2026-07-10, same day)
+
+Same-day follow-up: the founder asked for news to be posted "per actor" — split by
+organization rather than pooled under kawaraban's one root identity, keeping a clear
+separation from any future "media"/writer actor that would analyze/interpret/translate this
+primary-source content (that layer is a deliberate, not-yet-built follow-up, tracked
+separately — see `docs/adr/` cross-reference in ADR-2607110200's addendum).
+
+`src/kawaraban/mirror_actor.clj` (new) mints a DISTINCT self-sovereign identity per outlet
+(`.kawaraban/mirrors/<outlet-id>.edn`, gitignored) and writes an `app.bsky.actor.profile`
+to each one's aozora.app page BEFORE it ever publishes an article — the profile always
+discloses, up front: "🪞 Automated, UNOFFICIAL mirror of \<outlet\> ... not affiliated with
+or operated by \<outlet\>". This is the G9 (mirror-not-impersonation) guarantee made
+structural: no per-outlet identity can be mistaken for that outlet's own official account,
+because the disclosure is the first thing anyone sees on its profile. Every article gate
+(G1/G3/G4) is unchanged — only WHICH key signs the post changes.
+
+`src/kawaraban/aozora.clj` was refactored to expose `mint-session!`/`create-record!` as
+reusable building blocks (previously inlined in one `publish!`), so `set-profile!` and
+per-outlet publishing share the exact same session-mint path instead of duplicating it.
+
+Second real run: all 9 verified outlets now each have their own did:key + disclosed
+profile, 27 more `:mirror` articles published (3/outlet again) under their OWN identity
+instead of the shared root one. The original 25 articles under the root kawaraban identity
+were left as-is (no deletion) — they remain a legitimate aggregate view; new fetches route
+through the per-outlet identities going forward.
+
 Fixes landed while going live (found by actually running against real outlets, not
 hypothetical): `jvm-http-get` now follows redirects + sends an honest identifying
 User-Agent (BBC's feed 302-redirects http->https and was silently returning nothing);
