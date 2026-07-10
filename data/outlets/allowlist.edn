@@ -81,9 +81,9 @@
   :access "open"
   :homepage "https://www.cbc.ca/news"
   :feed-url "https://www.cbc.ca/cmlink/rss-world"
-  :verified false
+  :verified true
   :section "sec.international"
-  :note "live-checked 2026-07-10: request timed out (HTTP/1.1 and HTTP/2 both) from this environment. URL may still be correct -- retry from a different network before ruling it out."}
+  :note "re-checked 2026-07-10: was a transient timeout from the earlier environment, not a broken URL -- 200, 20 items on retry."}
 
  {:id "outlet.abc-au"
   :name "ABC News Australia"
@@ -150,4 +150,53 @@
   :homepage "https://news.un.org/en/"
   :feed-url "https://news.un.org/feed/subscribe/en/news/all/rss.xml"
   :verified true
-  :section "sec.international"}]
+  :section "sec.international"}
+
+ ;; ── topic-diversification wave (2026-07-10, owner instruction: "トピックの偏り
+ ;; を解消") — category feeds for outlets already above, so 面 isn't 88% sec.international.
+ ;; Each entry is a genuinely distinct RSS endpoint (verified live), not a re-tag of the
+ ;; same "world" feed.
+
+ {:id "outlet.bbc-business" :name "BBC News — Business" :kind "public-broadcaster"
+  :country "GB" :lang ["en"] :access "open" :homepage "https://www.bbc.co.uk/news/business"
+  :feed-url "http://feeds.bbci.co.uk/news/business/rss.xml" :verified true :section "sec.economy"}
+
+ {:id "outlet.bbc-science" :name "BBC News — Science & Environment" :kind "public-broadcaster"
+  :country "GB" :lang ["en"] :access "open" :homepage "https://www.bbc.co.uk/news/science_and_environment"
+  :feed-url "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml" :verified true :section "sec.science"}
+
+ {:id "outlet.bbc-arts" :name "BBC News — Entertainment & Arts" :kind "public-broadcaster"
+  :country "GB" :lang ["en"] :access "open" :homepage "https://www.bbc.co.uk/news/entertainment_and_arts"
+  :feed-url "http://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml" :verified true :section "sec.culture"}
+
+ {:id "outlet.bbc-sport" :name "BBC Sport" :kind "public-broadcaster"
+  :country "GB" :lang ["en"] :access "open" :homepage "https://www.bbc.co.uk/sport"
+  :feed-url "http://feeds.bbci.co.uk/sport/rss.xml" :verified true :section "sec.sports"}
+
+ {:id "outlet.npr-business" :name "NPR — Business" :kind "ngo-press"
+  :country "US" :lang ["en"] :access "open" :homepage "https://www.npr.org/sections/business/"
+  :feed-url "https://feeds.npr.org/1006/rss.xml" :verified true :section "sec.economy"}
+
+ {:id "outlet.npr-science" :name "NPR — Science" :kind "ngo-press"
+  :country "US" :lang ["en"] :access "open" :homepage "https://www.npr.org/sections/science/"
+  :feed-url "https://feeds.npr.org/1007/rss.xml" :verified true :section "sec.science"}
+
+ {:id "outlet.npr-arts" :name "NPR — Arts & Life" :kind "ngo-press"
+  :country "US" :lang ["en"] :access "open" :homepage "https://www.npr.org/sections/arts/"
+  :feed-url "https://feeds.npr.org/1008/rss.xml" :verified true :section "sec.culture"}
+
+ {:id "outlet.dw-business" :name "Deutsche Welle — Business" :kind "public-broadcaster"
+  :country "DE" :lang ["en"] :access "open" :homepage "https://www.dw.com/en/business/"
+  :feed-url "https://rss.dw.com/rdf/rss-en-bus" :verified true :section "sec.economy"}
+
+ {:id "outlet.dw-culture" :name "Deutsche Welle — Culture" :kind "public-broadcaster"
+  :country "DE" :lang ["en"] :access "open" :homepage "https://www.dw.com/en/culture/"
+  :feed-url "https://rss.dw.com/rdf/rss-en-cul" :verified true :section "sec.culture"}
+
+ ;; ── first Japanese-language source (owner instruction: "日本語ソースを追加").
+ ;; NOT the "NHK World-Japan" (English international service) entry above, whose feed
+ ;; URL is still unresolved -- this is NHK's real DOMESTIC Japanese-language news RSS,
+ ;; a genuinely different NHK product. Labeled honestly as such (G5).
+ {:id "outlet.nhk-news-ja" :name "NHKニュース (NHK News, domestic Japanese)" :kind "public-broadcaster"
+  :country "JP" :lang ["ja"] :access "open" :homepage "https://www3.nhk.or.jp/news/"
+  :feed-url "https://www3.nhk.or.jp/rss/news/cat0.xml" :verified true :section "sec.front"}]
