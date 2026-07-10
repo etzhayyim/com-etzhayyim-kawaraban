@@ -26,7 +26,8 @@
   :homepage "https://www3.nhk.or.jp/nhkworld/"
   :feed-url "https://www3.nhk.or.jp/nhkworld/en/news/all.xml"
   :verified false
-  :section "sec.international"}
+  :section "sec.international"
+  :note "live-checked 2026-07-10: this URL returns an HTML page, not RSS/Atom XML (guessed wrong). Needs a corrected feed URL before it will yield any articles."}
 
  {:id "outlet.bbc-world"
   :name "BBC News — World"
@@ -58,7 +59,7 @@
   :access "open"
   :homepage "https://www.france24.com/en/"
   :feed-url "https://www.france24.com/en/rss"
-  :verified false
+  :verified true
   :section "sec.international"}
 
  {:id "outlet.rthk"
@@ -69,7 +70,7 @@
   :access "open"
   :homepage "https://news.rthk.hk/"
   :feed-url "https://rthk9.rthk.hk/rthk/news/rss/e_expressnews_elocal.xml"
-  :verified false
+  :verified true
   :section "sec.international"}
 
  {:id "outlet.cbc"
@@ -81,7 +82,8 @@
   :homepage "https://www.cbc.ca/news"
   :feed-url "https://www.cbc.ca/cmlink/rss-world"
   :verified false
-  :section "sec.international"}
+  :section "sec.international"
+  :note "live-checked 2026-07-10: request timed out (HTTP/1.1 and HTTP/2 both) from this environment. URL may still be correct -- retry from a different network before ruling it out."}
 
  {:id "outlet.abc-au"
   :name "ABC News Australia"
@@ -91,7 +93,7 @@
   :access "open"
   :homepage "https://www.abc.net.au/news"
   :feed-url "https://www.abc.net.au/news/feed/51120/rss.xml"
-  :verified false
+  :verified true
   :section "sec.international"}
 
  {:id "outlet.npr"
@@ -147,5 +149,5 @@
   :access "open"
   :homepage "https://news.un.org/en/"
   :feed-url "https://news.un.org/feed/subscribe/en/news/all/rss.xml"
-  :verified false
+  :verified true
   :section "sec.international"}]

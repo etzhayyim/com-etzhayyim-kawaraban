@@ -27,6 +27,21 @@
   </channel>
 </rss>")
 
+(def rdf-fixture
+  ;; RSS 1.0/RDF shape (e.g. Deutsche Welle) -- flat <item> siblings, dc:date instead of pubDate.
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns=\"http://purl.org/rss/1.0/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">
+ <channel rdf:about=\"https://example.org/rdf\">
+  <title>Example RDF Wire</title>
+ </channel>
+ <item rdf:about=\"https://example.org/rdf/item1\">
+  <title>Wildfire response mobilizes emergency units</title>
+  <link>https://example.org/rdf/item1</link>
+  <description>Emergency units were mobilized to contain the blaze.</description>
+  <dc:date>2026-07-10T02:41:00Z</dc:date>
+ </item>
+</rdf:RDF>")
+
 (def atom-fixture
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <feed xmlns=\"http://www.w3.org/2005/Atom\">
@@ -59,6 +74,13 @@
     (is (= "open" (get (first records) "access")))
     (is (pos? (get (first records) "asOf")))
     (is (= "Trade volumes steady across \"major\" corridors" (get (second records) "headline")))))
+
+(deftest test-parse-feed-detects-rdf
+  (let [records (live-fetch/parse-feed rdf-fixture outlet)]
+    (is (= 1 (count records)))
+    (is (= "Wildfire response mobilizes emergency units" (get (first records) "headline")))
+    (is (= "https://example.org/rdf/item1" (get (first records) "url")))
+    (is (pos? (get (first records) "asOf")) "falls back to dc:date when pubDate is absent")))
 
 (deftest test-parse-feed-detects-atom
   (let [records (live-fetch/parse-feed atom-fixture outlet)]
