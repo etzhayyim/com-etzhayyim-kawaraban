@@ -1,8 +1,1 @@
-{:did        "did:web:etzhayyim.github.io:com-etzhayyim-kawaraban"
- :handle     "kawaraban.etzhayyim.com"
- :ipns-key   "kawaraban-actor"
- :graph-type "com.etzhayyim.kawaraban.graph"
- :published  "2026-06-28"
- :bundle [["data" "data"]
-          [".well-known/did.json" "did.json"]
-          ["README.md" "README.md"]]}
+[{:db/id -1, :actor/did "did:web:etzhayyim.github.io:com-etzhayyim-kawaraban", :actor/handle "kawaraban.etzhayyim.com", :actor/ipns-key "kawaraban-actor", :actor/graph-type "com.etzhayyim.kawaraban.graph", :actor/published "2026-06-28", :actor/bundle "[[\"data\" \"data\"] [\".well-known/did.json\" \"did.json\"] [\"README.md\" \"README.md\"]]"}]
