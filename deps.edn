@@ -1,8 +1,11 @@
-{:paths ["src"]
+{:paths ["src" "."]
  ;; ADR-2607110200: kawaraban's first .clj (JVM-only I/O) files — cacao.clj (Ed25519/CACAO
  ;; mint) and aozora.clj (aozora PDS publish) — need real JDK crypto, unlike the portable
  ;; .cljc methods/cells which stay bb-runnable via run_tests.sh. Same split as tashikame's
  ;; deps.edn (its closest sibling: identical cacao/aozora/publisher shape).
+ ;; "." added (ADR-2607110200 addendum 2, mirrors bb.edn's {:paths ["." "src"]}) so
+ ;; run_live_ingest.clj can require kawaraban.methods.live-fetch, which resolves through
+ ;; the repo's self-referential `kawaraban -> .` symlink against the flat methods/ layout.
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
         org.clojure/data.json {:mvn/version "2.5.1"}}
  :aliases
@@ -11,4 +14,5 @@
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
          :main-opts ["-m" "cognitect.test-runner"]}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
-         :main-opts    ["-m" "clj-kondo.main" "--lint" "src" "test" "--fail-level" "error"]}}}
+         :main-opts    ["-m" "clj-kondo.main" "--lint" "src" "test" "--fail-level" "error"]}
+  :live-ingest {:main-opts ["-m" "kawaraban.run-live-ingest"]}}}

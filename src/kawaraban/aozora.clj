@@ -15,14 +15,30 @@
             [kawaraban.cacao :as cacao]
             [kawaraban.publisher :as publisher])
   (:import [java.net URI]
-           [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers
+           [java.net.http HttpClient HttpClient$Redirect HttpRequest HttpRequest$BodyPublishers
             HttpResponse$BodyHandlers]
-           [java.time Instant]
+           [java.time Duration Instant]
            [java.util UUID]))
 
 (def default-pds
   "Matches the RAD identity journal's pre-recorded :rad/aozora-pds (tx 4)."
   "https://pds.aozora.app")
+
+(def ^:private shared-client
+  "One pooled HttpClient (not a fresh one per call -- ADR-2607110200 addendum 2) with an
+  explicit request timeout. Discovered the hard way: the pre-fix version built a bare
+  `(HttpClient/newHttpClient)` with NO `.timeout(...)` on the request, unlike
+  `kawaraban.methods.live-fetch/jvm-http-get`'s already-explicit 10s -- a single
+  unresponsive createRecord/createSession call against the shared operator graph (which
+  can legitimately take up to ~2 minutes under heavy novelty load, see that ADR's
+  addendum 1) had no client-side ceiling at all, so a genuinely stuck request hung the
+  whole batch indefinitely instead of failing loudly and letting the caller move on to
+  the next outlet. 120s is comfortably above the worst observed real latency (~130s was
+  the pre-fold extreme; steady state is single digits) while still bounded."
+  (-> (HttpClient/newBuilder)
+      (.connectTimeout (Duration/ofSeconds 20))
+      (.followRedirects HttpClient$Redirect/NORMAL)
+      (.build)))
 
 (defn jvm-http-fn
   "host-caps :http-fn backed by the JDK HTTP client (no dependency)."
@@ -33,8 +49,9 @@
                              (if body
                                (HttpRequest$BodyPublishers/ofString body)
                                (HttpRequest$BodyPublishers/noBody)))
+                   (.timeout (Duration/ofSeconds 120))
                    (.build))
-          resp (.send (HttpClient/newHttpClient) req (HttpResponse$BodyHandlers/ofString))]
+          resp (.send shared-client req (HttpResponse$BodyHandlers/ofString))]
       {:status (.statusCode resp) :body (.body resp)})))
 
 (defn mint-session!
