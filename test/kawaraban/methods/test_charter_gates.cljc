@@ -2,8 +2,7 @@
   "kawaraban 瓦版 — constitutional-gate conformance tests (manifest + lexicons).
 
   Substrate-native Clojure (ADR-2606160842 py→clj port wave; clj + datomic first tier).
-  Reads the FIRST-TIER `lex/*.edn` lexicons (datomic-native) via clojure.edn, and the
-  manifest via cheshire. Ported 1:1 from the (now pruned) methods/test_charter_gates.py.
+  Reads the Datomic projections under `data/lex-datoms` and canonical `manifest.edn`.
 
   kawaraban is the news MEDIUM — the charter-clean inverse of a news app. Its 11 gates are
   structural in the lexicons: never rules truth (G1), never republishes the body (G4 link-out),
@@ -11,16 +10,17 @@
   never ad/engagement-ranks (G2), never holds a server key (G7), never declares finality (G10)."
   (:require [clojure.test :refer [deftest is run-tests]]
             [clojure.edn :as edn]
-            [clojure.set :as set]
-            [cheshire.core :as json]))
+            [clojure.set :as set]))
 
 #?(:clj
    (do
-     (def ^:private here (.getParentFile (java.io.File. ^String *file*)))   ;; methods/
-     (def ^:private actor-dir (.getParentFile here))                        ;; kawaraban/
-     (def ^:private lexdir (java.io.File. actor-dir "lex"))
+     (def ^:private actor-dir (.getCanonicalFile (java.io.File. ".")))
+     (def ^:private lexdir (java.io.File. actor-dir "data/lex-datoms"))
      (defn- lex [name] (edn/read-string (slurp (java.io.File. lexdir (str name ".edn")))))
-     (defn- manifest [] (json/parse-string (slurp (java.io.File. actor-dir "manifest.jsonld"))))))
+     (defn- manifest []
+       (let [m (edn/read-string (slurp (java.io.File. actor-dir "manifest.edn")))
+             gates (into {} (map (fn [g] [(:gate/id g) g]) (:actor/gates m)))]
+         {"constitutionalGates" {"gates" gates}}))))
 
 ;; ── generic walkers: collect {field-keyword → attr-value} anywhere in the lexicon tree ──
 (defn- collect [doc attr]

@@ -214,7 +214,7 @@
                methods-dir (-> *file* clojure.java.io/file .getParentFile)
                batch (if (seq args)
                        (clojure.java.io/file (first args))
-                       (clojure.java.io/file methods-dir ".." "data" "ingest" "sample-batch.json"))
+                       (clojure.java.io/file "wire" "ingest" "sample-batch.json"))
                records (parse-json (slurp batch))
                [ok refused] (normalize-batch records)]
            (println (str "normalized " (count ok) " mirror article(s); refused " (count refused) " (gate violations)"))

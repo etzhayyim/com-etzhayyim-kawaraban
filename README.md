@@ -43,42 +43,31 @@ A **news MEDIUM** with two faces over one kotoba Datom log:
 
 ## Layout
 
-```
-kawaraban/
-├── manifest.jsonld                  # actor manifest (runtime=kotoba-wasm, Murakumo fleet placement)
-├── CLAUDE.md / README.md
-├── run_tests.sh                     # one-command test runner
-├── wasm/wit/world.wit               # kotoba-wasm component contract (export compute: func() -> string)
-├── lex/                             # 6 lexicons (com.etzhayyim.kawaraban.*)
-│   ├── outlet.edn  section.edn  article.edn  mentionEdge.edn  issue.edn  kawarabanReview.edn
-├── cells/                           # 5 Pregel cells (coded state machines; .solve() raises at R0)
-│   ├── outlet_ingest/  article_mirror/  section_route/  actor_project/  issue_compose/
-│   └── test_state_machines.py
-├── methods/                         # offline engines
-│   ├── route.py     # THE MEDIUM — actor→面 wire table + article×mention×面 graph builder
-│   ├── analyze.py   # issue composer — ranks a front-面 by G2 public-good signals only
-│   ├── ingest.py    # offline outlet normalizer (G4 membrane, --live G8-gated)
-│   └── test_route.py  test_analyze.py  test_ingest.py
-└── data/
-    └── seed-news-graph.kotoba.edn   # :representative seed (7 outlets / 10 面 / 12 articles / 9 wires / 24 mentions)
+```text
+manifest.edn                 canonical actor manifest
+src/kawaraban/               cells, methods, publisher, CACAO and live-ingest runtime
+test/kawaraban/              complete standalone test suite
+data/lex/                    canonical semantic EDN lexicons
+data/lex-datoms/             derived Datomic projections
+data/seed.edn                representative news graph
+data/outlets/allowlist.edn   live-ingest source policy
+wire/                        JSON/JSON-LD fixtures and WIT interoperability contract
 ```
 
 Ontology: [`/00-contracts/schemas/news-medium-ontology.kotoba.edn`](../../00-contracts/schemas/news-medium-ontology.kotoba.edn).
 
 ## Run
 
-```bash
-./run_tests.sh                       # all suites
-python3 methods/analyze.py           # compose an edition from the seed → out/edition.md
-python3 methods/route.py             # print the actor→面 wire + connection graph
+```sh
+bb test
+bb audit
 ```
+
+Python, Go/TinyGo, shell runners, self-referential path symlinks, and obsolete nbb
+wrappers are forbidden by audit.
 
 ## Status
 
-🟢 **R1** (ADR-2607110200) — live RSS/Atom fetch (`methods/live_fetch.cljc`) and real
-app-aozora publish (`src/kawaraban/{cacao,aozora,publisher,publish}.clj(c)`) are
-code-complete and tested against local fixtures/mocks. **Both remain OFF by default** —
-`KAWARABAN_ALLOW_LIVE_INGEST` is unset (refused) and `MockPublisher` is the default
-publisher; actually enabling live network fetch or real aozora.app publish is a separate,
-explicit operational step outside this ADR. Registered in INFRA_ACTORS →
+🟡 **R0** — design + datafication + offline composition only. No live RSS/outlet ingest, no
+live publish (all G8-gated → Council Lv6+ + operator). Registered in INFRA_ACTORS →
 `did:web:etzhayyim.com:actor:kawaraban`.

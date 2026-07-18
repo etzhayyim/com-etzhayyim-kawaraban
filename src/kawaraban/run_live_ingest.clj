@@ -1,6 +1,6 @@
 (ns kawaraban.run-live-ingest
   "Non-interactive entrypoint that runs one live-ingest pass over every :verified outlet
-  in `data/outlets/allowlist.edn`: fetch + normalize (methods/live_fetch.cljc, G1/G3/G4/G8
+  in `data/outlets/allowlist.edn`: fetch + normalize (src/kawaraban/methods/live_fetch.cljc, G1/G3/G4/G8
   gates unchanged) -> publish under that outlet's own per-outlet mirror identity
   (kawaraban.mirror-actor, G9 disclosure). Designed to be invoked periodically
   (clojure -M:live-ingest / GitHub Actions cron, ADR-2607110200 addendum 2) rather than

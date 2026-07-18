@@ -6,13 +6,7 @@
             [clojure.string :as str]
             [kawaraban.methods.ingest :as ingest]))
 
-(defn- batch-path []
-  (or (some-> (clojure.java.io/resource "kawaraban/data/ingest/sample-batch.json")
-              clojure.java.io/file)
-      (first (filter #(.exists (clojure.java.io/file %))
-                     ["20-actors/kawaraban/data/ingest/sample-batch.json"
-                      "../data/ingest/sample-batch.json"
-                      "data/ingest/sample-batch.json"]))))
+(defn- batch-path [] (clojure.java.io/file "wire/ingest/sample-batch.json"))
 
 (defn- records []
   (ingest/parse-json (slurp (batch-path))))

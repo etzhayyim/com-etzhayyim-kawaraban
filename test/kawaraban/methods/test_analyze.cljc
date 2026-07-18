@@ -5,13 +5,7 @@
             [kawaraban.methods.route :as route]
             [kawaraban.methods.analyze :as a]))
 
-(defn- seed-path []
-  (or (some-> (clojure.java.io/resource "kawaraban/data/seed-news-graph.kotoba.edn")
-              clojure.java.io/file)
-      (first (filter #(.exists (clojure.java.io/file %))
-                     ["20-actors/kawaraban/data/seed-news-graph.kotoba.edn"
-                      "../data/seed-news-graph.kotoba.edn"
-                      "data/seed-news-graph.kotoba.edn"]))))
+(defn- seed-path [] (clojure.java.io/file "data/seed.edn"))
 
 (defn- c [] (a/compose (route/load-edn (seed-path))))
 

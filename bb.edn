@@ -1,0 +1,5 @@
+{:tasks
+ {test {:doc "Run the complete standalone kawaraban suite"
+        :task (shell "clojure -M -m kawaraban.test-runner")}
+  audit {:doc "Validate canonical EDN and artifact boundaries"
+         :task (shell "clojure -M scripts/audit.clj")}}}

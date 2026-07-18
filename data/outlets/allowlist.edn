@@ -15,7 +15,7 @@
 ;;                    enabled for it (G5 source-provenance-honest — do not trust blindly).
 ;;
 ;; Adding an outlet: append an entry here, then add a matching :news.outlet/* record via
-;; the outlet_ingest cell (lex/outlet.edn) before it can appear in a :mirror article.
+;; the outlet_ingest cell (data/lex/outlet.edn) before it can appear in a :mirror article.
 
 [{:id "outlet.nhk-world"
   :name "NHK World-Japan"
