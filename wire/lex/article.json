@@ -1,98 +1,86 @@
 {
-  "lexicon": 1,
-  "id": "com.etzhayyim.kawaraban.article",
-  "defs": {
-    "main": {
-      "type": "record",
-      "key": "tid",
-      "record": {
-        "type": "object",
-        "required": [
-          "articleId",
-          "kind",
-          "section",
-          "headline",
-          "asOf"
-        ],
-        "properties": {
-          "articleId": {
-            "type": "string",
-            "description": "→ :news.article/id"
+  "lexicon" : 1,
+  "id" : "com.etzhayyim.kawaraban.article",
+  "defs" : {
+    "main" : {
+      "type" : "record",
+      "key" : "tid",
+      "record" : {
+        "type" : "object",
+        "required" : [ "articleId", "kind", "section", "headline", "asOf" ],
+        "properties" : {
+          "lang" : {
+            "type" : "string"
           },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "mirror",
-              "actor-event"
-            ],
-            "description": "G11 INVARIANT — 'mirror' (real outlet, requires outlet+url) OR 'actor-event' (projected first-party Datom, requires sourceActor+sourceTid). 'original' is NOT an enum member: kawaraban is a medium, not a source"
+          "url" : {
+            "type" : "string",
+            "description" : "canonical link-out (required when kind='mirror')"
           },
-          "section": {
-            "type": "string",
-            "description": "→ :news.section/id (the 面)"
+          "sourcing" : {
+            "type" : "string",
+            "enum" : [ "representative", "verified" ]
           },
-          "headline": {
-            "type": "string"
+          "sourceTid" : {
+            "type" : "string",
+            "description" : "the source Datom tid (required when kind='actor-event') — provenance back to the canonical event"
           },
-          "excerpt": {
-            "type": "string",
-            "maxLength": 280,
-            "description": "G4 — bounded fair-use quotation only; the full body is NEVER stored (see fullText below)"
+          "articleId" : {
+            "type" : "string",
+            "description" : "→ :news.article/id"
           },
-          "url": {
-            "type": "string",
-            "description": "canonical link-out (required when kind='mirror')"
+          "outlet" : {
+            "type" : "string",
+            "description" : "→ :news.outlet/id (required when kind='mirror')"
           },
-          "outlet": {
-            "type": "string",
-            "description": "→ :news.outlet/id (required when kind='mirror')"
+          "verdict" : {
+            "type" : "boolean",
+            "const" : false,
+            "description" : "G1 — kawaraban never rules a report true/false (ake/danjo boundary)"
           },
-          "sourceActor": {
-            "type": "string",
-            "description": "did:web actor (required when kind='actor-event')"
+          "section" : {
+            "type" : "string",
+            "description" : "→ :news.section/id (the 面)"
           },
-          "sourceTid": {
-            "type": "string",
-            "description": "the source Datom tid (required when kind='actor-event') — provenance back to the canonical event"
+          "fullText" : {
+            "type" : "boolean",
+            "const" : false,
+            "description" : "G4 — copyright; full body is unrepresentable (headline+link+excerpt only)"
           },
-          "lang": {
-            "type": "string"
+          "asOf" : {
+            "type" : "integer",
+            "description" : "epoch — append-only; latest = current, the stream = the trail (非終末論)"
           },
-          "asOf": {
-            "type": "integer",
-            "description": "epoch — append-only; latest = current, the stream = the trail (非終末論)"
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "mirror", "actor-event" ],
+            "description" : "G11 INVARIANT — 'mirror' (real outlet, requires outlet+url) OR 'actor-event' (projected first-party Datom, requires sourceActor+sourceTid). 'original' is NOT an enum member: kawaraban is a medium, not a source"
           },
-          "sourcing": {
-            "type": "string",
-            "enum": [
-              "representative",
-              "verified"
-            ]
+          "speakAs" : {
+            "type" : "boolean",
+            "const" : false,
+            "description" : "G9 — never post AS an outlet or AS another actor (mirror invariant, ADR-2606042330)"
           },
-          "verdict": {
-            "type": "boolean",
-            "const": false,
-            "description": "G1 — kawaraban never rules a report true/false (ake/danjo boundary)"
+          "sourceActor" : {
+            "type" : "string",
+            "description" : "did:web actor (required when kind='actor-event')"
           },
-          "truthRating": {
-            "type": "integer",
-            "const": 0,
-            "description": "G1 — no fact-check score; mirror, not adjudicator"
+          "personalizedFor" : {
+            "type" : "boolean",
+            "const" : false,
+            "description" : "G3 — the 面 is identical for all readers; no per-reader feed"
           },
-          "fullText": {
-            "type": "boolean",
-            "const": false,
-            "description": "G4 — copyright; full body is unrepresentable (headline+link+excerpt only)"
+          "truthRating" : {
+            "type" : "integer",
+            "const" : 0,
+            "description" : "G1 — no fact-check score; mirror, not adjudicator"
           },
-          "personalizedFor": {
-            "type": "boolean",
-            "const": false,
-            "description": "G3 — the 面 is identical for all readers; no per-reader feed"
+          "excerpt" : {
+            "type" : "string",
+            "maxLength" : 280,
+            "description" : "G4 — bounded fair-use quotation only; the full body is NEVER stored (see fullText below)"
           },
-          "speakAs": {
-            "type": "boolean",
-            "const": false,
-            "description": "G9 — never post AS an outlet or AS another actor (mirror invariant, ADR-2606042330)"
+          "headline" : {
+            "type" : "string"
           }
         }
       }
