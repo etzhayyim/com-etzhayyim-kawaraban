@@ -38,3 +38,29 @@ pipeline ADR-2606161536, the CC-corpus → G4-bounded `:article` derivation (D1)
 
 > **2026-07-18 standalone migration:** canonical EDN, Datomic projections, wire assets,
 > live-ingest/publisher runtime, and all tests are now self-contained in this repository.
+
+> **2026-07-19 world-scope outlet expansion (ADR-2607197800):** `data/outlets/allowlist.edn`
+> grew from 22 to 37 entries (registry-only change; no lexicon/cell/charter-gate code
+> touched, `KAWARABAN_ALLOW_LIVE_INGEST` semantics unchanged). The prior set skewed heavily
+> anglophone + Japan + Qatar (US/GB/DE/FR/HK/CA/AU/JP/QA/INT only). Added 15 new
+> state/public-broadcaster or non-profit/international-org outlets spanning China, Russia,
+> Iran, Turkey, South Africa, Brazil, Latin America (multi-country), Vietnam, Malaysia,
+> Singapore, South Korea, and WHO (international org):
+>
+> - **10 `:verified true`** (live-fetched this session, confirmed real RSS/Atom XML with
+>   current, same-day-dated items): CGTN (China), TASS (Russia), Press TV (Iran), Anadolu
+>   Agency (Turkey), SABC News (South Africa), Agência Brasil/EBC (Brazil), BERNAMA
+>   (Malaysia), CNA (Singapore, semi-state via Mediacorp/Temasek — flagged honestly in its
+>   `:note`), KBS World (South Korea), WHO News (international org).
+> - **5 `:verified false`** (honest, non-fabricated): Xinhua (China) — the URL resolves and
+>   returns real RSS XML, but every item is stale (dated 2017–2018, an abandoned legacy
+>   endpoint, not fabricated but not live either); TRT World (Turkey), Arirang (South Korea),
+>   Voice of Vietnam/VOV World (Vietnam), and teleSUR English (Latin America, multi-country)
+>   — no working public feed URL could be located this session for these four, so
+>   `:feed-url` is left `nil` rather than guessing wrong, same discipline as the pre-existing
+>   AP entry.
+>
+> India (DD News / PIB) was deliberately NOT added here — handled by a separate concurrent
+> task on the kouhou repo instead, per ADR-2607197800. World coverage remains best-effort and
+> incomplete after this wave, not exhaustive — gaps should keep being filled incrementally
+> and honestly flagged, not silently backfilled with guessed URLs.
