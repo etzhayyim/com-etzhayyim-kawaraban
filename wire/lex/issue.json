@@ -1,67 +1,56 @@
 {
-  "lexicon": 1,
-  "id": "com.etzhayyim.kawaraban.issue",
-  "defs": {
-    "main": {
-      "type": "record",
-      "key": "tid",
-      "record": {
-        "type": "object",
-        "required": [
-          "issueId",
-          "asOf",
-          "sections",
-          "rankSignals"
-        ],
-        "properties": {
-          "issueId": {
-            "type": "string",
-            "description": "→ :news.issue/id"
+  "lexicon" : 1,
+  "id" : "com.etzhayyim.kawaraban.issue",
+  "defs" : {
+    "main" : {
+      "type" : "record",
+      "key" : "tid",
+      "record" : {
+        "type" : "object",
+        "required" : [ "issueId", "asOf", "sections", "rankSignals" ],
+        "properties" : {
+          "issueId" : {
+            "type" : "string",
+            "description" : "→ :news.issue/id"
           },
-          "asOf": {
-            "type": "integer"
+          "asOf" : {
+            "type" : "integer"
           },
-          "sections": {
-            "type": "array",
-            "items": {
-              "type": "string"
+          "sections" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
             },
-            "description": "→ :news.section/id, in 面 order"
+            "description" : "→ :news.section/id, in 面 order"
           },
-          "lead": {
-            "type": "array",
-            "items": {
-              "type": "string"
+          "lead" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
             },
-            "description": "→ :news.article/id — the 一面 leads"
+            "description" : "→ :news.article/id — the 一面 leads"
           },
-          "rankSignals": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "recency",
-                "section-fit",
-                "source-diversity",
-                "actor-relevance",
-                "geo-proximity"
-              ]
+          "rankSignals" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "recency", "section-fit", "source-diversity", "actor-relevance", "geo-proximity" ]
             },
-            "description": "G2 INVARIANT — public-good ranking signals ONLY; 'paid-placement'/'sponsored'/'engagement'/'dwell-time' are NOT enum members (Charter §1.13 + Charter-Rider §2)"
+            "description" : "G2 INVARIANT — public-good ranking signals ONLY; 'paid-placement'/'sponsored'/'engagement'/'dwell-time' are NOT enum members (Charter §1.13 + Charter-Rider §2)"
           },
-          "published": {
-            "type": "boolean",
-            "description": "G7/G8 — false until member-signed + operator-gated"
+          "published" : {
+            "type" : "boolean",
+            "description" : "G7/G8 — false until member-signed + operator-gated"
           },
-          "serverHeldKey": {
-            "type": "boolean",
-            "const": false,
-            "description": "G7 — server never signs an edition (ADR-2605231525)"
+          "serverHeldKey" : {
+            "type" : "boolean",
+            "const" : false,
+            "description" : "G7 — server never signs an edition (ADR-2605231525)"
           },
-          "final": {
-            "type": "boolean",
-            "const": false,
-            "description": "G10 — no last edition (非終末論)"
+          "final" : {
+            "type" : "boolean",
+            "const" : false,
+            "description" : "G10 — no last edition (非終末論)"
           }
         }
       }
