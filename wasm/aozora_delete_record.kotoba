@@ -1,0 +1,93 @@
+(ns kawaraban-aozora-delete-record)
+
+(defn copy-bytes! [src dst i n]
+  (if (>= i n)
+    n
+    (do
+      (byte-store! dst i (mem-byte-at src i))
+      (copy-bytes! src dst (+ i 1) n))))
+
+;; ---------------------------------------------------------------------------
+;; kawaraban aozora deleteRecord -- confined slice of a NEW capability this
+;; repo did not previously need: `com.atproto.repo.deleteRecord`.
+;;
+;; [com-junkawasaki/root "Phase H" go-live diagnostic, 2026-07-23] added
+;; specifically to fix a real corrupted live record (see
+;; wasm/aozora_create_record.kotoba's own Phase H notes): `createRecord`
+;; against an ALREADY-EXISTING rkey does not overwrite (a real go-live
+;; attempt to re-createRecord the same rkey with corrected field values hit
+;; an HttpTimeoutException, not a clean 200/409) -- AT-Proto's fix-in-place
+;; path is delete-then-recreate, not upsert-via-createRecord. This module
+;; is that delete half.
+;;
+;; Builds the REAL `com.atproto.repo.deleteRecord` request body --
+;; `{"repo":.., "collection":.., "rkey":..}` -- a genuinely FLAT object (no
+;; nested/array field, unlike createRecord's `record.*`), so this only
+;; needs `json-encode`'s flat-pairs capability, not the dotted-path nesting
+;; extension `aozora_create_record.kotoba` needs. POSTs it with BOTH
+;; required headers (`Content-Type: application/json`,
+;; `Authorization: Bearer <jwt>`) via `http-post-headers`, same as
+;; `aozora_create_record.kotoba`.
+;;
+;; Two things this module deliberately does NOT do (see wasm/README.md):
+;;   - it does NOT mint the JWT itself (that's `aozora_create_session`'s/
+;;     `mint-session!`'s job, a separate call) -- the host writes an
+;;     already-minted JWT into this module's memory, exactly like every
+;;     other per-run dynamic value here.
+;;   - the target URL is the REAL `https://pds.aozora.app` from the start
+;;     (this module is net-new, never shipped a loopback build) -- safety
+;;     comes ENTIRELY from the caller-supplied `:allowed-url-prefixes`
+;;     allowlist kototama's RuntimeLimits already requires (empty/
+;;     non-matching allowlist = refused before any `HttpClient.send`).
+;;     Tests in this repo pass an allowlist that does NOT include
+;;     `pds.aozora.app`, so they make zero real network calls.
+;;
+;; Host input ABI (host writes BEFORE calling the 0-arity `main`). Every
+;; field is an (i32 length, UTF-8 text) pair; all offsets stay inside
+;; [0, 1024) (see wasm/cacao_wire_encode.kotoba's header comment for why
+;; that range is always safe -- compiler-laid-out string literals start at
+;; 1024, `alloc` never hands out below `heap-base` >= 2048):
+;;
+;; | field      | len offset | text offset | max width |
+;; |------------|-----------:|------------:|----------:|
+;; | repo (did) |          0 |           8 |        64 |
+;; | collection |         80 |          88 |        64 |
+;; | rkey       |        160 |         168 |        64 |
+;; | jwt        |        240 |         248 |       300 |
+;;
+;; (Same honest scope-limit convention every sibling module in this port
+;; documents: a real per-outlet session JWT MUST fit within the 300-byte
+;; cap above, a longer JWT simply cannot be used with this exact memory
+;; layout without widening it.)
+;;
+;; Output: `main` returns `http-post-headers`' result -- `-1` unless the
+;; caller's RuntimeLimits allowlist explicitly includes `pds.aozora.app`.
+(defn main []
+  (let [repo-len (mem-i32-at 0 0)
+        coll-len (mem-i32-at 80 0)
+        rkey-len (mem-i32-at 160 0)
+        jwt-len (mem-i32-at 240 0)
+        pairs-ptr (alloc 2048)
+        n0 (copy-bytes! (str-ptr "repo\t") pairs-ptr 0 5)
+        n1 (copy-bytes! 8 (+ pairs-ptr n0) 0 repo-len)
+        p1 (+ n0 n1)
+        n2 (copy-bytes! (str-ptr "\ncollection\t") (+ pairs-ptr p1) 0 12)
+        p2 (+ p1 n2)
+        n3 (copy-bytes! 88 (+ pairs-ptr p2) 0 coll-len)
+        p3 (+ p2 n3)
+        n4 (copy-bytes! (str-ptr "\nrkey\t") (+ pairs-ptr p3) 0 6)
+        p4 (+ p3 n4)
+        n5 (copy-bytes! 168 (+ pairs-ptr p4) 0 rkey-len)
+        p5 (+ p4 n5)
+        body-ptr (alloc 2200)
+        body-n (json-encode pairs-ptr p5 body-ptr 2200)
+        headers-ptr (alloc 512)
+        h0 (copy-bytes! (str-ptr "Content-Type\tapplication/json\nAuthorization\tBearer ") headers-ptr 0 51)
+        h1 (copy-bytes! 248 (+ headers-ptr h0) 0 jwt-len)
+        headers-n (+ h0 h1)
+        resp-ptr (alloc 2048)]
+    (http-post-headers (str-ptr "https://pds.aozora.app/xrpc/com.atproto.repo.deleteRecord")
+                        (str-len "https://pds.aozora.app/xrpc/com.atproto.repo.deleteRecord")
+                        body-ptr body-n
+                        headers-ptr headers-n
+                        resp-ptr 2048)))
