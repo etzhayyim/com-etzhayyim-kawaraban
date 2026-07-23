@@ -37,7 +37,9 @@
     (.write memory 8 cacao-bytes 0 (count cacao-bytes))
     (let [written (tender/call-main instance)]
       ;; alloc order in this module: pairs-ptr@2048 (2048B) ->
-      ;; body-ptr@4096 (2200B) -> resp-ptr@6296 (512B). See
+      ;; body-ptr@4096 (2200B) -> resp-ptr@6296 (2048B, widened from 512B
+  ;; per Phase H go-live diagnostic -- real createSession responses can
+  ;; exceed 512 bytes). See
       ;; wasm/README.md "Output buffer offset".
       {:written written
        :json-body (tender/read-memory-string

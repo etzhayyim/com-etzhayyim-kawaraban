@@ -44,6 +44,22 @@
 ;;
 ;; Output: `main` returns http-post's result -- `-1` unless the caller's
 ;; RuntimeLimits allowlist explicitly includes `pds.aozora.app` (see above).
+;;
+;; [com-junkawasaki/root "Phase H" go-live diagnostic, 2026-07-23] resp-ptr
+;; widened from 512 -> 2048 bytes: `write-bytes!`'s host-side implementation
+;; ((if (> n cap) -1 ...)) silently returns -1 -- INDISTINGUISHABLE from a
+;; refused call -- when the real response body exceeds the guest's declared
+;; cap. A REAL com.atproto.server.createSession success response against
+;; the live PDS was measured at 694 bytes (did+handle+accessJwt+refreshJwt+
+;; tokenType -- both JWTs, not just one, is what pushed it past the original
+;; 512-byte cap this module shipped with, sized only against Phase B/F's
+;; short synthetic test fixtures). This is a REAL bug this go-live
+;; diagnostic caught: the CACAO envelope + createSession call chain was
+;; ALREADY WORKING END TO END against the live server (status 200, genuine
+;; session minted) -- the -1 was purely this buffer being too small to read
+;; the (perfectly valid) reply back out, not an auth/wire-format failure.
+;; resp-ptr is the LAST allocation in this module, so widening it does not
+;; shift pairs-ptr/body-ptr's offsets.
 (defn main []
   (let [cacao-len (mem-i32-at 0 0)
         pairs-ptr (alloc 2048)
@@ -51,8 +67,8 @@
         c2 (copy-bytes! 8 (+ pairs-ptr 6) 0 cacao-len)
         body-ptr (alloc 2200)
         body-n (json-encode pairs-ptr (+ 6 cacao-len) body-ptr 2200)
-        resp-ptr (alloc 512)]
+        resp-ptr (alloc 2048)]
     (http-post (str-ptr "https://pds.aozora.app/xrpc/com.atproto.server.createSession")
                (str-len "https://pds.aozora.app/xrpc/com.atproto.server.createSession")
                body-ptr body-n
-               resp-ptr 512)))
+               resp-ptr 2048)))

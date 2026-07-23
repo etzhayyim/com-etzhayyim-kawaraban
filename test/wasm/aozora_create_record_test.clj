@@ -67,7 +67,8 @@
       {:written written
        ;; alloc order in this module: pairs-ptr@2048 (2048B) ->
        ;; body-ptr@4096 (2200B) -> headers-ptr@6296 (512B) ->
-       ;; resp-ptr@6808 (512B).
+       ;; resp-ptr@6808 (2048B, widened from 512B per Phase H go-live
+       ;; diagnostic -- real createSession responses can exceed 512 bytes).
        :json-body (tender/read-memory-string
                    instance 4096
                    (count (str "{\"repo\":\"" repo "\",\"collection\":\"" collection
