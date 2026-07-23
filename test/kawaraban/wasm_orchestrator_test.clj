@@ -287,8 +287,26 @@
       (is (= 1 (:attempted result)) "bounded to 1 even though 2 articles are new")
       (is (= 0 (:published result)) "real pds.aozora.app target still refuses without KAWARABAN_WASM_PDS_ALLOWLIST (empty-allowlist fail-closed default)")
       (is (= 1 (:session-refused result)))
-      (is (pos? (:new-mark result))
-          "high-water-mark still advances over ALL fetched/gate-passed records, not just the bounded/attempted subset"))
+      (is (= 0 (:new-mark result))
+          "[2026-07-23 reliability fix] high-water-mark stays put when nothing was
+          actually published this run -- a session-refused article must remain
+          eligible for a future retry (e.g. once KAWARABAN_WASM_PDS_ALLOWLIST is
+          set), not be silently consumed by a mark advance"))
+    (finally (delete-test-identity!))))
+
+(deftest test-process-outlet-records-high-water-mark-advances-only-past-published
+  (delete-test-identity!)
+  (try
+    (let [ok (gate-passed-fixture-records)
+          first-as-of (get (first ok) ":news.article/as-of")
+          result (sut/process-outlet-records! fixture-outlet ok 0
+                                               {:wasm-dir sut/default-wasm-dir :pds "http://127.0.0.1"
+                                                :max-articles-per-outlet 1})]
+      (is (= 0 (:published result)) "sanity: this fixture pds still refuses (fail-closed empty allowlist)")
+      (is (not= first-as-of (:new-mark result))
+          "[2026-07-23 reliability fix] an attempted-but-refused article's as-of
+          must NOT be folded into the new mark -- only an actually :ok result
+          may advance it (mirrors cloud-itonami.media.batch/advance-marks)"))
     (finally (delete-test-identity!))))
 
 (deftest test-process-outlet-records-high-water-mark-excludes-already-seen
