@@ -102,6 +102,17 @@
      a production run possible is therefore a FUTURE, explicit compilation
      step for the repo owner, not something this phase silently prepares
      un-flagged.
+
+     [Phase H, com-junkawasaki/root, 2026-07-23] That future step has now
+     happened, deliberately and separately from this phase: both modules
+     were recompiled with the real `https://pds.aozora.app` URL baked in
+     (this repo's default `wasm/` directory now IS the production-URL
+     variant; `:wasm-dir` injection above still works for anyone who wants
+     to point at a DIFFERENT, e.g. loopback/test, build instead). The
+     resulting real network reachability is gated by a SEPARATE, explicit
+     opt-in (`KAWARABAN_WASM_PDS_ALLOWLIST`, see `pds-allowlist` below) --
+     unset by default, so installing/running this orchestrator is still
+     safe by default even against the now-real-URL binaries.
   ============================================================================
 
   Bounded by design (`:max-outlets` / `:max-articles-per-outlet`, both
@@ -122,7 +133,8 @@
   among every GATE-PASSED/fetched record, regardless of publish outcome --
   a transient publish failure is retried next tick via the normal feed-
   window overlap, not by refusing to advance the mark)."
-  (:require [clojure.edn :as edn]
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [kawaraban.methods.live-fetch :as live-fetch]
@@ -357,34 +369,63 @@
        :sig sig
        :payload payload})))
 
+;; ── URL allowlist (Phase H, com-junkawasaki/root, 2026-07-23) ────────────────
+;;
+;; wasm/aozora_create_session.kotoba and wasm/aozora_create_record.kotoba now
+;; target the REAL https://pds.aozora.app (a deliberate recompile from Phase
+;; B/F's loopback-only build -- see wasm/README.md), so kototama's
+;; unconditional SSRF denylist alone no longer refuses these calls (a public
+;; HTTPS host is not loopback/private/link-local). Safety now comes from an
+;; EXPLICIT `:allowed-url-prefixes` allowlist
+;; (kototama.contract/url-allowed?'s documented \"empty collection = deny
+;; all\" semantics -- NOT the `nil` = unrestricted default, which this repo
+;; deliberately never relies on): unset/empty by default (every real network
+;; call refused before any HttpClient.send), and an operator opts in to real
+;; publishing by setting KAWARABAN_WASM_PDS_ALLOWLIST explicitly -- same
+;; deliberate, separate-from-installation opt-in shape as
+;; cloud-itonami's MEDIA_WASM_PDS_ALLOWLIST.
+(defn- pds-allowlist []
+  (if-let [v (System/getenv "KAWARABAN_WASM_PDS_ALLOWLIST")]
+    (vec (remove str/blank? (str/split v #",")))
+    []))
+
 ;; ── createSession (aozora_create_session.wasm) ───────────────────────────────
 
-(def ^:private session-caps
-  (contract/host-caps {:grants [:http-post :json-encode] :limits {:max-http-posts 1}}))
+(defn- session-caps []
+  (contract/host-caps {:grants [:http-post :json-encode]
+                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)}}))
 
 (defn create-session-via-wasm!
   "POSTs `cacao-b64` as `{\"cacao\":\"...\"}` via
-  wasm/aozora_create_session.wasm. The target URL is a `.kotoba`
-  compile-time literal (`http://127.0.0.1/xrpc/com.atproto.server.createSession`
-  in every `.wasm` this repo ships -- see namespace docstring finding 3),
-  so `kototama.tender`'s unconditional SSRF denylist ALWAYS refuses it
-  (`:written -1`) with the modules this repo compiles today -- the SAME
-  loopback-refusal proof every existing wasm test in this repo already
-  establishes for this exact module."
+  wasm/aozora_create_session.wasm against the REAL
+  `https://pds.aozora.app/xrpc/com.atproto.server.createSession` (Phase H
+  recompile). Refused (`:written -1`) unless
+  KAWARABAN_WASM_PDS_ALLOWLIST explicitly names this host (see
+  `pds-allowlist` above) -- deliberately fail-closed by default, exactly
+  like every wasm test in this repo already proves for the empty-allowlist
+  case."
   [wasm-dir cacao-b64]
   (let [instance (tender/instantiate (wasm-bytes (wasm-path wasm-dir "aozora_create_session"))
-                                     [:http-post :json-encode] session-caps)
+                                     [:http-post :json-encode] (session-caps))
         memory (.memory instance)
         cacao-bytes (.getBytes ^String cacao-b64 "UTF-8")]
     (.writeI32 memory 0 (count cacao-bytes))
     (.write memory 8 cacao-bytes 0 (count cacao-bytes))
     (let [written (tender/call-main instance)]
-      {:written written :refused (= -1 written)})))
+      ;; resp-ptr@6296 -- this module's alloc order (pairs-ptr@2048/2048B ->
+      ;; body-ptr@4096/2200B -> resp-ptr@6296/512B), same layout
+      ;; test/wasm/aozora_create_session_test.clj documents; `written` IS the
+      ;; response byte count http-post wrote there (kototama.tender's
+      ;; http-post-host-fn docstring: \"-> bytes-written|-1\"), not a guess.
+      {:written written
+       :refused (= -1 written)
+       :response-body (when (pos? written) (tender/read-memory-string instance 6296 written))})))
 
 ;; ── createRecord (aozora_create_record.wasm) ─────────────────────────────────
 
-(def ^:private record-caps
-  (contract/host-caps {:grants [:http-post-headers :json-encode] :limits {:max-http-posts 1}}))
+(defn- record-caps []
+  (contract/host-caps {:grants [:http-post-headers :json-encode]
+                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)}}))
 
 (def ^:private record-field-offsets
   {:repo 0 :collection 80 :rkey 160 :analysis 240 :cites0 384 :cites1 464
@@ -442,13 +483,14 @@
                    provenance reference)
     actor       <- the SAME outlet mirror identity did as `repo`
 
-  The target URL is a `.kotoba` compile-time literal
-  (`http://127.0.0.1/xrpc/com.atproto.repo.createRecord`), so this ALWAYS
-  refuses (`:written -1`) with the modules this repo compiles today --
-  same as `create-session-via-wasm!`."
+  The target URL is now the REAL
+  `https://pds.aozora.app/xrpc/com.atproto.repo.createRecord` (Phase H
+  recompile) -- refused (`:written -1`) unless
+  KAWARABAN_WASM_PDS_ALLOWLIST explicitly names this host, same as
+  `create-session-via-wasm!`."
   [wasm-dir identity outlet record jwt]
   (let [instance (tender/instantiate (wasm-bytes (wasm-path wasm-dir "aozora_create_record"))
-                                     [:http-post-headers :json-encode] record-caps)
+                                     [:http-post-headers :json-encode] (record-caps))
         memory (.memory instance)
         {:keys [text truncated?]} (truncate-utf8 (get record ":news.article/headline" "") 128)]
     (write-record-field! memory (:repo record-field-offsets) (:did identity))
@@ -517,35 +559,62 @@
   that, so it defaults even smaller)."
   1)
 
+(defn- extract-access-jwt
+  "Pulls \"accessJwt\" out of a real com.atproto.server.createSession
+  response body. [Phase H, com-junkawasaki/root, 2026-07-23]: does this
+  HOST-side (clojure.data.json, already a project dep) rather than via a
+  wasm json-extract-field round-trip -- the response bytes are already a
+  plain JVM string by the time create-session-via-wasm! returns them
+  (http-post-host-fn reads them off the wire before ever poking them into
+  guest memory), so re-entering wasm to re-extract a field from data the
+  host already holds would add a second untested wasm module under time
+  pressure for no confinement benefit (the sensitive step -- MINTING and
+  SENDING the CACAO-authenticated request -- already happened wasm-side;
+  reading a field back out of the plain-text JSON reply is not a
+  capability boundary). Returns nil (not an exception) on any parse
+  failure or missing/non-string field -- caller treats that as a failed
+  session, never fabricates a JWT."
+  [response-body]
+  (try
+    (let [v (get (json/read-str (or response-body "")) "accessJwt")]
+      (when (string? v) v))
+    (catch Exception _ nil)))
+
 (defn publish-article!
   "One article's full wasm-path publish attempt: mint a fresh CACAO session
-  token, attempt createSession, and -- ONLY if that were to succeed --
-  attempt createRecord. With the loopback-target modules this repo ships
-  (namespace docstring finding 3), createSession ALWAYS refuses, so
-  createRecord is architecturally never reached via this exact call graph
-  in this configuration -- correct behavior for a session that never
-  actually authenticated, not a bug. (A REAL deployment, once pointed at a
-  genuinely reachable PDS by recompiling with a real URL baked in -- a
-  deliberate future step this session does not take -- would see
-  createSession succeed and this function proceed to createRecord for
-  real.) `create-record-via-wasm!`'s own wiring is independently proven by
-  `wasm_orchestrator_test.clj` with a synthetic jwt, matching how
-  `test/wasm/aozora_create_record_test.clj` already tests that module in
-  isolation from createSession's own outcome."
+  token, attempt createSession, extract the real accessJwt from its
+  response, and -- only if that succeeded -- attempt createRecord with
+  that real JWT.
+
+  [Phase H, com-junkawasaki/root, 2026-07-23]: both wasm modules now target
+  the REAL https://pds.aozora.app (recompiled from Phase B/F's loopback
+  build), gated by KAWARABAN_WASM_PDS_ALLOWLIST (see `pds-allowlist`) --
+  createSession can genuinely succeed now, so the PRIOR version of this
+  function's hardcoded placeholder JWT (\"unreachable-in-loopback-mode\",
+  dead code while createSession always refused) would have been a REAL BUG
+  the moment createSession started succeeding: createRecord would have
+  authenticated with a fabricated string instead of the real session
+  token. `extract-access-jwt` closes that gap. `create-record-via-wasm!`'s
+  own wiring is independently proven by `wasm_orchestrator_test.clj` with a
+  synthetic jwt, matching how `test/wasm/aozora_create_record_test.clj`
+  already tests that module in isolation from createSession's own outcome."
   [identity outlet record opts]
   (let [article-id (get record ":news.article/id")]
     (try
       (let [{:keys [cacao-b64]} (mint-cacao! identity opts)
             session (create-session-via-wasm! (:wasm-dir opts default-wasm-dir) cacao-b64)]
-        (if (:refused session)
+        (cond
+          (:refused session)
           {:ok false :stage :session :refused true :article-id article-id}
-          ;; Unreachable with the loopback-target modules this repo ships
-          ;; today -- kept for a future real-URL-compiled variant.
-          (let [jwt "unreachable-in-loopback-mode"
-                rec (create-record-via-wasm! (:wasm-dir opts default-wasm-dir) identity outlet record jwt)]
-            (if (:refused rec)
-              {:ok false :stage :record :refused true :article-id article-id}
-              {:ok true :article-id article-id}))))
+
+          :else
+          (let [jwt (extract-access-jwt (:response-body session))]
+            (if (nil? jwt)
+              {:ok false :stage :session :jwt-extract-failed true :article-id article-id}
+              (let [rec (create-record-via-wasm! (:wasm-dir opts default-wasm-dir) identity outlet record jwt)]
+                (if (:refused rec)
+                  {:ok false :stage :record :refused true :article-id article-id}
+                  {:ok true :article-id article-id}))))))
       (catch Exception e
         {:ok false :stage :error :error (ex-message e) :article-id article-id}))))
 

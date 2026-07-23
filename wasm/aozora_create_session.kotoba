@@ -20,14 +20,20 @@
 ;;     needs `Content-Type: application/json` (and createRecord separately
 ;;     needs `Authorization: Bearer <jwt>`, not exercised in THIS module).
 ;;     This module posts a correctly-shaped JSON body with no headers.
-;;   - the `pds` URL below is loopback (http://127.0.0.1/...) ON PURPOSE --
-;;     this session (com-junkawasaki/root Phase B) makes NO real internet
-;;     calls. kototama's `blocked-http-post-destination?` denylist refuses
-;;     ANY loopback/private/link-local/metadata destination unconditionally,
-;;     so this module's `http-post` call is GUARANTEED to return -1 --
-;;     the same proof shape Phase A's `kotoba-compiled-http-fetch.kotoba`
-;;     fixture already established (real compiler+tender LINKAGE + real
-;;     SSRF-guard EXECUTION, not a live network round trip).
+;;   - [com-junkawasaki/root "Phase H", 2026-07-23] the `pds` URL below now
+;;     points at the REAL `https://pds.aozora.app` -- a deliberate, separate
+;;     recompile from Phase B/F's loopback build (never a side effect of an
+;;     env-var flip; see wasm/README.md). Safety no longer comes from
+;;     kototama's `blocked-http-post-destination?` SSRF denylist (a public
+;;     HTTPS host is not loopback/private/link-local, so that guard does
+;;     NOT refuse this URL) -- it comes ENTIRELY from the caller-supplied
+;;     `:allowed-url-prefixes` allowlist kototama's RuntimeLimits already
+;;     requires (empty/non-matching allowlist = refused before any
+;;     `HttpClient.send`, same fail-closed default the launchd plists and
+;;     wasm_orchestrator.clj's `MEDIA_WASM_PDS_ALLOWLIST`-style gating rely
+;;     on). Tests in this repo pass an allowlist that does NOT include
+;;     `pds.aozora.app`, so they still make zero real network calls despite
+;;     the literal now being a real host.
 ;;
 ;; Input ABI (host writes BEFORE calling the 0-arity `main`):
 ;;   offset 0 (i32): cacao-text byte length (cacao-len, <= 2032)
@@ -36,8 +42,8 @@
 ;;     produced, or the real base64 cacao_b64 kawaraban.cacao/mint returns;
 ;;     this module treats it as an opaque string either way).
 ;;
-;; Output: `main` returns http-post's result, which is ALWAYS -1 in this
-;; session (loopback denial) -- see above.
+;; Output: `main` returns http-post's result -- `-1` unless the caller's
+;; RuntimeLimits allowlist explicitly includes `pds.aozora.app` (see above).
 (defn main []
   (let [cacao-len (mem-i32-at 0 0)
         pairs-ptr (alloc 2048)
@@ -46,7 +52,7 @@
         body-ptr (alloc 2200)
         body-n (json-encode pairs-ptr (+ 6 cacao-len) body-ptr 2200)
         resp-ptr (alloc 512)]
-    (http-post (str-ptr "http://127.0.0.1/xrpc/com.atproto.server.createSession")
-               (str-len "http://127.0.0.1/xrpc/com.atproto.server.createSession")
+    (http-post (str-ptr "https://pds.aozora.app/xrpc/com.atproto.server.createSession")
+               (str-len "https://pds.aozora.app/xrpc/com.atproto.server.createSession")
                body-ptr body-n
                resp-ptr 512)))
