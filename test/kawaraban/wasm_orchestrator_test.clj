@@ -178,11 +178,11 @@
                     ":news.article/headline" "A real headline for the fixture article"
                     ":news.article/url" "https://example.org/news/fixture-article"
                     ":news.article/as-of" 123}
-            {:keys [written refused headline-truncated?]}
+            {:keys [written refused truncated-fields]}
             (sut/create-record-via-wasm! sut/default-wasm-dir identity outlet record "fixture-jwt")]
         (is (true? refused))
         (is (= -1 written))
-        (is (false? headline-truncated?)))
+        (is (empty? truncated-fields)))
       (finally (delete-test-identity!)))))
 
 (deftest test-create-record-via-wasm-truncates-an-overlong-headline-and-flags-it
@@ -194,10 +194,40 @@
                   ":news.article/headline" (apply str (repeat 200 "x"))
                   ":news.article/url" "https://example.org/news/long"
                   ":news.article/as-of" 999}
-          {:keys [headline-truncated?]}
+          {:keys [truncated-fields]}
           (sut/create-record-via-wasm! sut/default-wasm-dir identity outlet record "fixture-jwt")]
-      (is (true? headline-truncated?)))
+      (is (some #{:analysis} truncated-fields)))
     (finally (delete-test-identity!))))
+
+(deftest test-create-record-via-wasm-truncates-an-overlong-article-url-instead-of-corrupting-memory
+  (testing "REGRESSION test for a real go-live bug (com-junkawasaki/root,
+            2026-07-23): a real BBC article URL with RSS tracking params
+            (80 bytes) exceeded cites0's 64-byte field width and was
+            written RAW (no truncation), corrupting the NEXT field's
+            length header -- observed live as control bytes embedded
+            mid-URL in a published record. write-record-field! now
+            truncates every field via truncate-utf8 before writing, so
+            an overlong URL is safely shortened (flagged in
+            :truncated-fields), never corrupts adjacent memory."
+    (delete-test-identity!)
+    (try
+      (let [identity (sut/load-or-create-identity! test-outlet-id sut/default-wasm-dir)
+            outlet {:id test-outlet-id :homepage "https://example.org/outlet"}
+            real-bbc-style-url "https://www.bbc.co.uk/news/articles/cj03r59z73po?at_medium=RSS&at_campaign=rss"
+            record {":news.article/id" "art.test.777"
+                    ":news.article/headline" "A normal headline"
+                    ":news.article/url" real-bbc-style-url
+                    ":news.article/as-of" 777}
+            {:keys [written refused truncated-fields]}
+            (sut/create-record-via-wasm! sut/default-wasm-dir identity outlet record "fixture-jwt")]
+        (is (> (count (.getBytes real-bbc-style-url "UTF-8")) 64)
+            "the fixture URL must genuinely exceed cites0's 64-byte width for this test to prove anything")
+        (is (some #{:cites0} truncated-fields))
+        ;; refused (empty allowlist, no real network call) -- this test only
+        ;; proves the write itself is safe, not that the call reaches the PDS.
+        (is (true? refused))
+        (is (= -1 written)))
+      (finally (delete-test-identity!)))))
 
 ;; ============================================================================
 ;; publish-article! / process-outlet-records! -- bypassing G8 (matching
