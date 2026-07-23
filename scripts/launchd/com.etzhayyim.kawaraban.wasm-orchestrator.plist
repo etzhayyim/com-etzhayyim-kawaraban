@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Phase G (com-junkawasaki/root, ADR-2607231600): 6時間ごとの常駐 tick で
+     kawaraban.wasm-orchestrator (RSS/Atom取得 -> G1/G3/G4/G8 charter gate ->
+     outlet別identity + CACAO署名 + aozora XRPC publish、全て kotoba-wasm /
+     kototama.tender 経由) を1周させる。src/kawaraban/wasm_orchestrator.clj の
+     namespace docstring 参照(3つの正直なスコープ制約: (1) 恒久identity署名は
+     wasm/identity_sign.kotoba 経由、(2) aozora_create_record.kotoba の
+     record.* フィールドは digest 形状の流用でkawaraban自身の:news.article/*
+     とは一致しない、(3) 送信先URLは.kotobaのコンパイル時literalなので
+     このplistが起動するバイナリは常に loopback 宛 -- 本番pds.aozora.appへの
+     到達は別途リコンパイルが必要、このplist単体では起きない)。
+
+     G8ゲート(KAWARABAN_ALLOW_LIVE_INGEST)は既定で未設定のまま -- つまり
+     このplistは、operatorが明示的にCouncil attestation付きで環境変数を
+     設定するまでは無害な no-op を6時間毎に繰り返すだけ(fetch-outlet!が
+     毎回 :refused true を返すのみ、鍵生成・署名・ネットワーク呼び出し
+     一切なし)。運用側でこの環境変数を設定する場合は
+     ~/Library/LaunchAgents 配下のplist複製にEnvironmentVariablesとして
+     追記すること(本ファイル自体には焼き込まない)。
+
+     KAWARABAN_WASM_MAX_OUTLETS / KAWARABAN_WASM_MAX_ARTICLES_PER_OUTLET
+     で1回あたりの上限を上書き可能(既定値は
+     src/kawaraban/wasm_orchestrator.clj の default-max-outlets/
+     default-max-articles-per-outlet -- 2026-07-10の「3/outlet」CPU超過の
+     前例を踏まえ保守的に小さい値)。
+
+     clojure CLI (`/opt/homebrew/bin/clojure`) はJVM上で動く -- 実行環境に
+     javaが解決できること(JAVA_HOME/`/usr/libexec/java_home`経由)を
+     launchctl bootstrap前に確認すること。
+
+     インストール:
+       sed "s|/Users/junkawasaki|$HOME|g; s|/Users/junkawasaki/github/com-junkawasaki/orgs/etzhayyim/com-etzhayyim-kawaraban|/path/to/orgs/etzhayyim/com-etzhayyim-kawaraban|g" \
+         scripts/launchd/com.etzhayyim.kawaraban.wasm-orchestrator.plist \
+         > ~/Library/LaunchAgents/com.etzhayyim.kawaraban.wasm-orchestrator.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.etzhayyim.kawaraban.wasm-orchestrator.plist
+     ログ: ~/.kawaraban/logs/wasm-orchestrator.log -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.etzhayyim.kawaraban.wasm-orchestrator</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/clojure</string>
+    <string>-M:wasm-orchestrator</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/junkawasaki/github/com-junkawasaki/orgs/etzhayyim/com-etzhayyim-kawaraban</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/junkawasaki/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key><string>/Users/junkawasaki</string>
+  </dict>
+  <key>StartInterval</key><integer>21600</integer>
+  <key>StandardOutPath</key><string>/Users/junkawasaki/.kawaraban/logs/wasm-orchestrator.log</string>
+  <key>StandardErrorPath</key><string>/Users/junkawasaki/.kawaraban/logs/wasm-orchestrator.log</string>
+  <key>ProcessType</key><string>Background</string>
+</dict>
+</plist>

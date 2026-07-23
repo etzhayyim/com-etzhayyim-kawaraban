@@ -40,9 +40,16 @@
   (contract/host-caps {:grants [:cbor-encode]}))
 
 ;; offset layout mirrors wasm/cacao_wire_encode.kotoba's own ABI table.
+;; [Phase G, com-junkawasaki/root] res0/res1/exp/sig offsets shifted --
+;; resources.0/resources.1 widened from 64 -> 100 bytes each (a REAL
+;; canonical-graph URI is 74 bytes, exceeding the original 64-byte cap --
+;; see wasm/cacao_wire_encode.kotoba's own header comment for the full
+;; memory-corruption finding this widening fixes). The golden-fixture
+;; VALUES and expected byte count below are unaffected (buffer width does
+;; not change the bytes written for a given real field value).
 (def ^:private field-offsets
   {:iss 0 :aud 80 :iat 160 :nonce 216 :domain 272 :version 320
-   :res0 344 :res1 424 :exp 504 :sig 560})
+   :res0 344 :res1 460 :exp 576 :sig 632})
 
 (defn- write-field! [memory offset ^String text]
   (let [bs (.getBytes text "UTF-8")]
