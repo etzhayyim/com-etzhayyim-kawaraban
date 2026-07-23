@@ -8,7 +8,22 @@
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
-                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}
+                      ;; test-only: hosts wasm/*.wasm (compiled from
+                      ;; wasm/*.kotoba, see wasm/README.md) via
+                      ;; kototama.tender -- proves the kotoba-wasm
+                      ;; componentization of kawaraban.cacao/kawaraban.aozora
+                      ;; runs as a real Chicory-hosted WASM guest, not just as
+                      ;; JVM Clojure. Pinned to kotoba-lang/kototama main
+                      ;; post-PR#49 (http-fetch/cbor-encode/json-encode/
+                      ;; json-extract-field capabilities, ADR-2607231022).
+                      ;; Same test-only local/root convention
+                      ;; cloud-itonami-isic-6310's deps.edn established for
+                      ;; this exact pattern -- git/sha here instead of
+                      ;; local/root since this repo is not west-managed
+                      ;; alongside kotoba-lang/kototama.
+                      io.github.kotoba-lang/kototama
+                      {:git/sha "0ccdafc6f2c5cff91c5a02f7bc4845778fcdacee"}}
          :main-opts ["-m" "cognitect.test-runner"]}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
          :main-opts    ["-m" "clj-kondo.main" "--lint" "src" "test" "--fail-level" "error"]}

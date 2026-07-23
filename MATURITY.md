@@ -64,3 +64,29 @@ pipeline ADR-2606161536, the CC-corpus → G4-bounded `:article` derivation (D1)
 > task on the kouhou repo instead, per ADR-2607197800. World coverage remains best-effort and
 > incomplete after this wave, not exhaustive — gaps should keep being filled incrementally
 > and honestly flagged, not silently backfilled with guessed URLs.
+
+> **2026-07-23 kotoba-wasm componentization, Phase B (com-junkawasaki/root
+> ADR-2607231022, kototama PR #49 "Phase A"):** `wasm/` (new) ports a
+> confined slice of `src/kawaraban/cacao.clj` (Ed25519 self-mint: fresh
+> keypair + SHA-256 fingerprint + Ed25519 sign + flat CBOR encode) and
+> `src/kawaraban/aozora.clj` (the `com.atproto.server.createSession` HTTP
+> half: JSON envelope build + POST, and the response-field-extraction
+> half) to real `.kotoba` → WASM modules, hosted and verified via
+> `kototama.tender` against a real Chicory `Instance` — see
+> `wasm/README.md` for the full design, ABI, and an honest gap list
+> (nested CBOR maps, HTTP headers, i64 division, did:key/graph-cid
+> bignum encoding all stay out of scope for this pass, each with a
+> concrete reason). **RSS/Atom fetch+parse (`methods/live_fetch.cljc`)
+> and the G1/G3/G4 charter gates (`methods/ingest.cljc`) are
+> deliberately NOT touched** — `.kotoba`'s language subset genuinely
+> cannot express unbounded-length XML parsing (confirmed empirically,
+> not merely assumed), and this pass's scope is the execution-substrate
+> change for the CACAO/XRPC boundary only, not a re-implementation of the
+> charter. No live internet calls were made anywhere in this pass
+> (task constraint) — `aozora_create_session.kotoba`'s `http-post` target
+> is loopback on purpose, proving real compiler+tender linkage and real
+> SSRF-guard execution the same way kototama's own
+> `kotoba-compiled-http-fetch.kotoba` fixture already did, not a live
+> round trip. `clojure -M:test` — 29 tests / 56 assertions, 0
+> failures/errors (20/46 pre-existing + 9/10 new). Fleet placement on
+> Murakumo (Phase D) is a separate, later, explicitly-confirmed step.

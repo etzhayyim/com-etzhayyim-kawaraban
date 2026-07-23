@@ -1,0 +1,36 @@
+(ns kawaraban-aozora-extract-session-fields)
+
+;; ---------------------------------------------------------------------------
+;; kawaraban aozora createSession response parsing -- confined slice of
+;; `kawaraban.aozora/mint-session!`'s response half:
+;;   (let [sbody (json-read (:body sess)) jwt (get sbody "accessJwt")] ...)
+;;
+;; `json-extract-field` is a bounded literal-key string scan, NOT a general
+;; JSON parser (kototama.tender/json-string-field-value's docstring) -- this
+;; module demonstrates it against a REALISTIC example
+;; com.atproto.server.createSession response shape (literal, same "known
+;; example, not live data" pattern kototama's OWN
+;; kotoba-compiled-json-extract-field.kotoba fixture already established
+;; for `{"k":"v"}`; this module just uses a shape that matches the real
+;; XRPC response instead of a placeholder). Real (dynamic, per-run)
+;; response bodies would arrive via the same "host pokes memory before
+;; calling main" convention `cacao_self_mint.kotoba`/
+;; `aozora_create_session.kotoba` use elsewhere in this port -- not
+;; exercised here because this module's only purpose is to prove the
+;; extraction call itself, matching Phase A's own fixture-generation
+;; precedent.
+;;
+;; Returns json-extract-field's bytes-written count for the "accessJwt"
+;; field (or -1 if the field were absent/non-string -- not reachable here
+;; since the literal response always carries it).
+;; NOTE: `.kotoba` string literals are capped at 127 UTF-8 bytes
+;; (portable-string-symbol-values admission limit), so this example
+;; response is trimmed to the 2 fields this module actually reads --
+;; still a realistic com.atproto.server.createSession response shape.
+(defn main []
+  (json-extract-field
+   (str-ptr "{\"did\":\"did:key:z6MkOutlet\",\"accessJwt\":\"demo.session.jwt\"}")
+   (str-len "{\"did\":\"did:key:z6MkOutlet\",\"accessJwt\":\"demo.session.jwt\"}")
+   (str-ptr "accessJwt")
+   (str-len "accessJwt")
+   (alloc 64) 64))
