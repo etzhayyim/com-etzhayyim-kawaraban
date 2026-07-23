@@ -52,6 +52,9 @@ data/lex-datoms/             derived Datomic projections
 data/seed.edn                representative news graph
 data/outlets/allowlist.edn   live-ingest source policy
 wire/                        JSON/JSON-LD fixtures and WIT interoperability contract
+wasm/                        .kotoba/WASM componentization of the CACAO self-mint and
+                              aozora XRPC boundary (see wasm/README.md); test/wasm/ hosts
+                              them via kotoba-lang/kototama's kototama.tender
 ```
 
 Ontology: [`/00-contracts/schemas/news-medium-ontology.kotoba.edn`](../../00-contracts/schemas/news-medium-ontology.kotoba.edn).
