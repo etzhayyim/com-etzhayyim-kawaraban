@@ -1,0 +1,137 @@
+(ns kawaraban-cacao-wire-encode)
+
+;; dst[i] = src[i] for i in [0, n). Returns n. Same byte-copy helper
+;; cacao_self_mint.kotoba/aozora_create_session.kotoba already use -- `src`
+;; may be either a `str-ptr` literal (compile-time template text) or a raw
+;; integer address the HOST wrote dynamic bytes to before calling `main`.
+(defn copy-bytes! [src dst i n]
+  (if (>= i n)
+    n
+    (do
+      (byte-store! dst i (mem-byte-at src i))
+      (copy-bytes! src dst (+ i 1) n))))
+
+;; ---------------------------------------------------------------------------
+;; kawaraban CACAO wire encode -- a FAITHFUL, standalone port of
+;; `kawaraban.cacao/->wire` (Phase F, com-junkawasaki/root ADR-2607231234
+;; "Phase E" closed the capability gap this module exercises: cbor-encode's
+;; dotted-path nesting extension).
+;;
+;; `->wire` in the real Clojure source is deliberately a PURE data-shaping
+;; function -- `(defn ->wire [payload sig-b64] {"h" {...} "p" {...} "s"
+;; {...}})` -- it takes an ALREADY-COMPUTED sig-b64 string as a plain
+;; argument; the actual Ed25519 signing happens one step earlier, inside
+;; `mint` (which calls `->wire` after signing, not before). This module
+;; ports EXACTLY that pure step: every one of the 10 wire fields (9 CACAO
+;; payload fields + the signature text) is HOST-PROVIDED opaque text,
+;; written into this guest's linear memory at fixed offsets before `main`
+;; is called (the same "host formats/pokes text, guest assembles + calls
+;; a capability" convention `cacao_self_mint.kotoba`'s SIWE message input
+;; already established) -- this module performs ZERO cryptography itself.
+;;
+;; This is a DIFFERENT module from `cacao_self_mint.kotoba` on purpose:
+;; that module still demonstrates the REAL crypto CHAIN (gen-keypair +
+;; sha256-hex + sign, unchanged since Phase B) and, also on purpose, still
+;; emits its own flat 3-field CBOR approximation -- conflating that
+;; module's own freshly-generated (hence never byte-reproducible) Ed25519
+;; signature with THIS module's byte-exact wire-shape proof would make
+;; neither proof clean. Splitting `mint` (signing) from `->wire` (encoding)
+;; into two separate modules mirrors the real Clojure namespace's own
+;; separation of concerns.
+;;
+;; Host input ABI (host writes BEFORE calling the 0-arity `main` -- `kotoba
+;; wasm emit` rejects any parameterized main). Every field is an (i32
+;; length, UTF-8 text) pair. All offsets stay inside [0, 1024) -- string
+;; LITERAL data (this module's own "h.t\teip4361\np.iss\t" etc. template
+;; fragments below) is laid out by the compiler starting at offset 1024
+;; (`kotoba.runtime/memory-layout`), and the guest's own `alloc` bump
+;; allocator never hands out anything below `heap-base` (>= 2048) -- so
+;; [0, 1024) is host-writable input territory with zero risk of colliding
+;; with either region, for any input size this ABI's own field-width caps
+;; allow:
+;;
+;; | field        | len offset | text offset | max width |
+;; |--------------|-----------:|------------:|----------:|
+;; | iss          |          0 |           8 |        64 |
+;; | aud          |         80 |          88 |        64 |
+;; | iat          |        160 |         168 |        40 |
+;; | nonce        |        216 |         224 |        40 |
+;; | domain       |        272 |         280 |        32 |
+;; | version      |        320 |         328 |         8 |
+;; | resources.0  |        344 |         352 |        64 |
+;; | resources.1  |        424 |         432 |        64 |
+;; | exp          |        504 |         512 |        40 |
+;; | sig (s.s)    |        560 |         568 |       200 |
+;;
+;; (`kawaraban.cacao/grant->resources` always returns EXACTLY 2 resource
+;; URIs -- `[op-uri graph-uri]` -- for every real grant, so a fixed
+;; 2-element `resources` array is a genuine domain invariant here, not an
+;; arbitrary port-time simplification. `:statement` is omitted entirely --
+;; `kawaraban.aozora/mint-session!`'s real call site never passes one
+;; either, matching ADR-2607231234's own golden-fixture parameter choice.)
+;;
+;; Output: `main` returns `cbor-encode`'s bytes-written count (i32, or -1
+;; on any host-side failure). The CBOR bytes are a definite-length 3-entry
+;; map {"h":{"t":"eip4361"}, "p":{"iss":..,"aud":..,"iat":..,"nonce":..,
+;; "domain":..,"version":..,"resources":[..,..],"exp":..}, "s":{"t":
+;; "EdDSA","s":..}} -- BYTE-EXACT wire-compatible with what
+;; `cloud_itonami.media.cacao/->wire` (the real JVM reference this ADR
+;; traces to `kawaraban.cacao`/`tashikame.cacao`/`kotoba.cacao`) produces
+;; for the same field values -- see test/wasm/cacao_wire_encode_test.clj,
+;; which feeds this module the EXACT SAME fixed field values ADR-2607231234's
+;; own golden-fixture test (`kotoba-lang/kototama`'s
+;; `cbor-encode-nested-reproduces-cacao-wire-envelope-byte-exact`) used,
+;; and asserts the SAME 264-byte output.
+(defn main []
+  (let [iss-len (mem-i32-at 0 0)
+        aud-len (mem-i32-at 80 0)
+        iat-len (mem-i32-at 160 0)
+        nonce-len (mem-i32-at 216 0)
+        domain-len (mem-i32-at 272 0)
+        version-len (mem-i32-at 320 0)
+        res0-len (mem-i32-at 344 0)
+        res1-len (mem-i32-at 424 0)
+        exp-len (mem-i32-at 504 0)
+        sig-len (mem-i32-at 560 0)
+        pairs-ptr (alloc 2048)
+        n0 (copy-bytes! (str-ptr "h.t\teip4361\np.iss\t") pairs-ptr 0 18)
+        n1 (copy-bytes! 8 (+ pairs-ptr n0) 0 iss-len)
+        p1 (+ n0 n1)
+        n2 (copy-bytes! (str-ptr "\np.aud\t") (+ pairs-ptr p1) 0 7)
+        p2 (+ p1 n2)
+        n3 (copy-bytes! 88 (+ pairs-ptr p2) 0 aud-len)
+        p3 (+ p2 n3)
+        n4 (copy-bytes! (str-ptr "\np.iat\t") (+ pairs-ptr p3) 0 7)
+        p4 (+ p3 n4)
+        n5 (copy-bytes! 168 (+ pairs-ptr p4) 0 iat-len)
+        p5 (+ p4 n5)
+        n6 (copy-bytes! (str-ptr "\np.nonce\t") (+ pairs-ptr p5) 0 9)
+        p6 (+ p5 n6)
+        n7 (copy-bytes! 224 (+ pairs-ptr p6) 0 nonce-len)
+        p7 (+ p6 n7)
+        n8 (copy-bytes! (str-ptr "\np.domain\t") (+ pairs-ptr p7) 0 10)
+        p8 (+ p7 n8)
+        n9 (copy-bytes! 280 (+ pairs-ptr p8) 0 domain-len)
+        p9 (+ p8 n9)
+        n10 (copy-bytes! (str-ptr "\np.version\t") (+ pairs-ptr p9) 0 11)
+        p10 (+ p9 n10)
+        n11 (copy-bytes! 328 (+ pairs-ptr p10) 0 version-len)
+        p11 (+ p10 n11)
+        n12 (copy-bytes! (str-ptr "\np.resources.0\t") (+ pairs-ptr p11) 0 15)
+        p12 (+ p11 n12)
+        n13 (copy-bytes! 352 (+ pairs-ptr p12) 0 res0-len)
+        p13 (+ p12 n13)
+        n14 (copy-bytes! (str-ptr "\np.resources.1\t") (+ pairs-ptr p13) 0 15)
+        p14 (+ p13 n14)
+        n15 (copy-bytes! 432 (+ pairs-ptr p14) 0 res1-len)
+        p15 (+ p14 n15)
+        n16 (copy-bytes! (str-ptr "\np.exp\t") (+ pairs-ptr p15) 0 7)
+        p16 (+ p15 n16)
+        n17 (copy-bytes! 512 (+ pairs-ptr p16) 0 exp-len)
+        p17 (+ p16 n17)
+        n18 (copy-bytes! (str-ptr "\ns.t\tEdDSA\ns.s\t") (+ pairs-ptr p17) 0 15)
+        p18 (+ p17 n18)
+        n19 (copy-bytes! 568 (+ pairs-ptr p18) 0 sig-len)
+        p19 (+ p18 n19)
+        out-ptr (alloc 512)]
+    (cbor-encode pairs-ptr p19 out-ptr 512)))

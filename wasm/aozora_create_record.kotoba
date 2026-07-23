@@ -1,0 +1,141 @@
+(ns kawaraban-aozora-create-record)
+
+(defn copy-bytes! [src dst i n]
+  (if (>= i n)
+    n
+    (do
+      (byte-store! dst i (mem-byte-at src i))
+      (copy-bytes! src dst (+ i 1) n))))
+
+;; ---------------------------------------------------------------------------
+;; kawaraban aozora createRecord -- confined slice of
+;; `kawaraban.aozora/create-record!` (Phase F, com-junkawasaki/root
+;; ADR-2607231234 "Phase E" closed BOTH capability gaps this module needed:
+;; `http-post-headers` for the mandatory `Authorization: Bearer <jwt>`
+;; header, and `json-encode`'s dotted-path nesting for the `record` field's
+;; nested/array shape). Phase B's wasm/README.md findings 4 and 5 flagged
+;; this exact call (`com.atproto.repo.createRecord`) as NOT PORTABLE for
+;; want of these two capabilities -- this module closes that gap.
+;;
+;; Builds the REAL `com.atproto.repo.createRecord` request body --
+;; `{"repo":.., "collection":.., "rkey":.., "record":{...}}`, where
+;; `record` is itself an object with a nested array-of-objects field
+;; (`cites`) -- exactly `kawaraban.aozora/create-record!`'s own body shape
+;; (`{:repo (:did identity) :collection coll :rkey (or (:rkey record)
+;; "self") :record rec}`) for a realistic `net.itonami.media.digest`
+;; record (matching `cloud_itonami.media.murakumo/generate-digest!`'s real
+;; field set, the same fixture shape ADR-2607231234's own golden-fixture
+;; test used) -- then POSTs it with BOTH required headers
+;; (`Content-Type: application/json`, `Authorization: Bearer <jwt>`) via
+;; `http-post-headers`.
+;;
+;; Two things this module deliberately does NOT do (see wasm/README.md):
+;;   - it does NOT mint the JWT itself (that's `aozora_create_session`'s/
+;;     `mint-session!`'s job, a separate call) -- the host writes an
+;;     already-minted JWT into this module's memory, exactly like every
+;;     other per-run dynamic value here.
+;;   - the target URL is loopback (`http://127.0.0.1/...`) ON PURPOSE --
+;;     this session (com-junkawasaki/root Phase F) makes NO real internet
+;;     calls. kototama's `blocked-http-post-destination?` denylist refuses
+;;     ANY loopback/private/link-local/metadata destination unconditionally
+;;     (the SAME guard `http-post-headers` reuses from `http-post`), so
+;;     this module's call is GUARANTEED to return -1 -- the same proof
+;;     shape every prior sibling module in this port already established
+;;     (real compiler+tender LINKAGE + real SSRF-guard EXECUTION, not a
+;;     live network round trip).
+;;
+;; Host input ABI (host writes BEFORE calling the 0-arity `main`). Every
+;; field is an (i32 length, UTF-8 text) pair; all offsets stay inside
+;; [0, 1024) -- see wasm/cacao_wire_encode.kotoba's header comment for why
+;; that range is always safe (compiler-laid-out string literals start at
+;; 1024, `alloc` never hands out below `heap-base` >= 2048):
+;;
+;; | field                | len offset | text offset | max width |
+;; |-----------------------|-----------:|------------:|----------:|
+;; | repo (did)            |          0 |           8 |        64 |
+;; | collection            |         80 |          88 |        64 |
+;; | rkey                  |        160 |         168 |        64 |
+;; | record.analysis       |        240 |         248 |       128 |
+;; | record.cites.0.url    |        384 |         392 |        64 |
+;; | record.cites.1.url    |        464 |         472 |        64 |
+;; | record.createdAt      |        544 |         552 |        40 |
+;; | record.actor          |        600 |         608 |        64 |
+;; | jwt (session accessJwt)|        680 |         688 |       300 |
+;;
+;; (A real per-outlet session JWT MUST fit within the 300-byte cap above --
+;; a genuine, documented scope limit of THIS module, not a silent
+;; truncation: a longer JWT simply cannot be used with this exact memory
+;; layout without widening it, the same class of honest constraint
+;; `cacao_self_mint.kotoba`'s `msg-len <= 2000` already documents.)
+;;
+;; Output: `main` returns `http-post-headers`' result -- ALWAYS `-1` in
+;; this repo's test suite (loopback SSRF denial, see above). The JSON body
+;; `json-encode` built (readable back from `body-ptr` for that many bytes)
+;; is BYTE-EXACT wire-compatible with `cloud_itonami.media.aozora/
+;; create-record!`'s real `cheshire.core/generate-string`-produced request
+;; body for the same field values -- see
+;; test/wasm/aozora_create_record_test.clj, which feeds this module the
+;; EXACT SAME fixed field values ADR-2607231234's own golden-fixture test
+;; (`kotoba-lang/kototama`'s
+;; `json-encode-nested-reproduces-createrecord-body-byte-exact`) used, and
+;; asserts the SAME 297-byte JSON output, AND that both headers (a real
+;; `Content-Type` and a real `Authorization: Bearer <jwt>`) genuinely reach
+;; a local test server when the destination-guard bypass
+;; `kototama.tender/post-request-with-headers` is exercised directly (the
+;; SAME proof shape ADR-2607231234's own
+;; `post-request-with-headers-sends-real-headers-to-a-local-server` test
+;; established for kototama itself).
+(defn main []
+  (let [repo-len (mem-i32-at 0 0)
+        coll-len (mem-i32-at 80 0)
+        rkey-len (mem-i32-at 160 0)
+        analysis-len (mem-i32-at 240 0)
+        cites0-len (mem-i32-at 384 0)
+        cites1-len (mem-i32-at 464 0)
+        created-len (mem-i32-at 544 0)
+        actor-len (mem-i32-at 600 0)
+        jwt-len (mem-i32-at 680 0)
+        pairs-ptr (alloc 2048)
+        n0 (copy-bytes! (str-ptr "repo\t") pairs-ptr 0 5)
+        n1 (copy-bytes! 8 (+ pairs-ptr n0) 0 repo-len)
+        p1 (+ n0 n1)
+        n2 (copy-bytes! (str-ptr "\ncollection\t") (+ pairs-ptr p1) 0 12)
+        p2 (+ p1 n2)
+        n3 (copy-bytes! 88 (+ pairs-ptr p2) 0 coll-len)
+        p3 (+ p2 n3)
+        n4 (copy-bytes! (str-ptr "\nrkey\t") (+ pairs-ptr p3) 0 6)
+        p4 (+ p3 n4)
+        n5 (copy-bytes! 168 (+ pairs-ptr p4) 0 rkey-len)
+        p5 (+ p4 n5)
+        n6 (copy-bytes! (str-ptr "\nrecord.analysis\t") (+ pairs-ptr p5) 0 17)
+        p6 (+ p5 n6)
+        n7 (copy-bytes! 248 (+ pairs-ptr p6) 0 analysis-len)
+        p7 (+ p6 n7)
+        n8 (copy-bytes! (str-ptr "\nrecord.cites.0.url\t") (+ pairs-ptr p7) 0 20)
+        p8 (+ p7 n8)
+        n9 (copy-bytes! 392 (+ pairs-ptr p8) 0 cites0-len)
+        p9 (+ p8 n9)
+        n10 (copy-bytes! (str-ptr "\nrecord.cites.1.url\t") (+ pairs-ptr p9) 0 20)
+        p10 (+ p9 n10)
+        n11 (copy-bytes! 472 (+ pairs-ptr p10) 0 cites1-len)
+        p11 (+ p10 n11)
+        n12 (copy-bytes! (str-ptr "\nrecord.createdAt\t") (+ pairs-ptr p11) 0 18)
+        p12 (+ p11 n12)
+        n13 (copy-bytes! 552 (+ pairs-ptr p12) 0 created-len)
+        p13 (+ p12 n13)
+        n14 (copy-bytes! (str-ptr "\nrecord.actor\t") (+ pairs-ptr p13) 0 14)
+        p14 (+ p13 n14)
+        n15 (copy-bytes! 608 (+ pairs-ptr p14) 0 actor-len)
+        p15 (+ p14 n15)
+        body-ptr (alloc 2200)
+        body-n (json-encode pairs-ptr p15 body-ptr 2200)
+        headers-ptr (alloc 512)
+        h0 (copy-bytes! (str-ptr "Content-Type\tapplication/json\nAuthorization\tBearer ") headers-ptr 0 51)
+        h1 (copy-bytes! 688 (+ headers-ptr h0) 0 jwt-len)
+        headers-n (+ h0 h1)
+        resp-ptr (alloc 512)]
+    (http-post-headers (str-ptr "http://127.0.0.1/xrpc/com.atproto.repo.createRecord")
+                        (str-len "http://127.0.0.1/xrpc/com.atproto.repo.createRecord")
+                        body-ptr body-n
+                        headers-ptr headers-n
+                        resp-ptr 512)))
