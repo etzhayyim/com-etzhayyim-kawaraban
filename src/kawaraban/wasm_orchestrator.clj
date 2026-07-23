@@ -552,6 +552,37 @@
                                       (when actor-truncated? :actor)
                                       (when jwt-truncated? :jwt)]))}))
 
+;; ── deleteRecord (aozora_delete_record.wasm) ─────────────────────────────────
+;;
+;; [com-junkawasaki/root "Phase H" go-live diagnostic, 2026-07-23]: added to
+;; fix a real corrupted live record -- a real go-live attempt found that
+;; re-`createRecord`-ing an ALREADY-EXISTING rkey with corrected field
+;; values does not overwrite in place (it hit an HttpTimeoutException, not
+;; a clean 200/409); AT-Proto's fix-in-place path is delete-then-recreate,
+;; not upsert-via-createRecord. This is the delete half; the caller is
+;; expected to follow it with a fresh `create-record-via-wasm!` call using
+;; the SAME rkey once this delete has completed.
+
+(defn- delete-record-caps []
+  (contract/host-caps {:grants [:http-post-headers :json-encode]
+                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)}}))
+
+(defn delete-record-via-wasm!
+  "Deletes ONE record (by REPO/COLLECTION/RKEY) via
+  wasm/aozora_delete_record.wasm -- the REAL `com.atproto.repo.
+  deleteRecord`, gated by the same KAWARABAN_WASM_PDS_ALLOWLIST allowlist
+  as create-session-via-wasm!/create-record-via-wasm!."
+  [wasm-dir repo collection rkey jwt]
+  (let [instance (tender/instantiate (wasm-bytes (wasm-path wasm-dir "aozora_delete_record"))
+                                     [:http-post-headers :json-encode] (delete-record-caps))
+        memory (.memory instance)]
+    (write-record-field! memory 0 64 repo)
+    (write-record-field! memory 80 64 collection)
+    (write-record-field! memory 160 64 rkey)
+    (write-record-field! memory 240 300 jwt)
+    (let [written (tender/call-main instance)]
+      {:written written :refused (= -1 written)})))
+
 ;; ============================================================================
 ;; Per-outlet identity persistence
 ;; ============================================================================
