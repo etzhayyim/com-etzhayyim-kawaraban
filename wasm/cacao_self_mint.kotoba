@@ -1,0 +1,90 @@
+(ns kawaraban-cacao-self-mint)
+
+;; dst[i] = src[i] for i in [0, n). Returns n. The only "string
+;; concatenation" primitive available in this language subset -- `.kotoba`
+;; has no runtime string/format builtin (confirmed empirically here and in
+;; cloud-itonami-isic-6511's underwriting_decision.kotoba /
+;; cloud-itonami-isic-6310's achievement_band.kotoba). This is a genuine
+;; byte-for-byte memcpy built from admitted primitives only
+;; (byte-store!/mem-byte-at/if/do/+/recursion), used to assemble a
+;; contiguous host-import input buffer out of literal template pieces and
+;; dynamic (host-call-derived) byte regions.
+(defn copy-bytes! [src dst i n]
+  (if (>= i n)
+    n
+    (do
+      (byte-store! dst i (mem-byte-at src i))
+      (copy-bytes! src dst (+ i 1) n))))
+
+(defn hex-nibble [nibble]
+  (if (< nibble 10)
+    (+ (byte-at "0" 0) nibble)
+    (+ (byte-at "a" 0) (- nibble 10))))
+
+;; Writes 2*n lowercase hex ASCII chars at dst from n raw bytes at src.
+;; Returns 2*n. Needed because `sign`'s host import writes a RAW 64-byte
+;; Ed25519 signature (not text) -- cbor-encode's flat-pairs wire format
+;; requires valid UTF-8 text (parse-flat-pairs decodes the whole buffer as
+;; a UTF-8 String on the host side), so raw binary cannot be embedded
+;; directly.
+(defn hex-encode! [src dst i n]
+  (if (>= i n)
+    (* n 2)
+    (do
+      (byte-store! dst (* i 2) (hex-nibble (bit-and (unsigned-bit-shift-right (mem-byte-at src i) 4) 15)))
+      (byte-store! dst (+ (* i 2) 1) (hex-nibble (bit-and (mem-byte-at src i) 15)))
+      (hex-encode! src dst (+ i 1) n))))
+
+;; ---------------------------------------------------------------------------
+;; kawaraban CACAO self-mint -- confined slice of `kawaraban.cacao/mint`
+;; (Ed25519 identity + Ed25519 signature + CBOR wire encode). NOT a
+;; byte-faithful port -- see wasm/README.md for the full gap list. In
+;; particular:
+;;   - `cbor-encode` only produces a FLAT (single-level) definite-length
+;;     CBOR map (kototama.tender's `parse-flat-pairs`/`cbor-pairs-bytes`),
+;;     not the real CACAO wire's nested {"h":{...},"p":{...},"s":{...}}
+;;     shape -- this module's CBOR output is a flat approximation, useful
+;;     to prove the capability chain, NOT wire-compatible with a real
+;;     CACAO-verifying server.
+;;   - did:key / graph-cid derivation (base58btc / CIDv1 base32) needs
+;;     bignum encoding this language cannot express -- stays host-side
+;;     (kawaraban.cacao/did-key, kawaraban.cacao/canonical-graph,
+;;     unchanged). The "fingerprint" field below (sha256-hex of the raw
+;;     pubkey) is a real, meaningful use of the `hash/sha256` capability,
+;;     but it is NOT a did:key.
+;;
+;; Input ABI (host writes BEFORE calling the 0-arity `main` -- `kotoba wasm
+;; emit` rejects any parameterized main; see wasm/README.md "ABI"):
+;;   offset 0 (i32): siwe-message byte length (msg-len)
+;;   offset 8..(8+msg-len): SIWE message text, UTF-8 (host-formatted via
+;;     kawaraban.cacao/siwe-message, UNCHANGED -- this module never builds
+;;     that text itself). msg-len MUST be <= 2000 (stays clear of
+;;     heap-base 2048, where `alloc` starts handing out guest-owned scratch
+;;     memory for gen-keypair/sha256-hex/sign/cbor-encode below).
+;;
+;; Output: `main` returns the CBOR bytes-written count (i32, or -1 on any
+;; host-side failure/quota denial, the vocabulary's universal in-band
+;; fail-closed convention). The caller reads the CBOR bytes back from the
+;; SAME address `main` internally allocates for its output buffer --
+;; `alloc`'s first-ever call in this function is guaranteed to return
+;; heap-base (2048, verified empirically same as every kototama fixture),
+;; and this module's OWN first `alloc` call is for `seed-ptr`, so the
+;; output buffer lands at a LATER, but still-deterministic-for-this-module,
+;; offset -- see wasm/README.md's "Output buffer offset" table for the
+;; exact number (derived once from a real compile, not hand-guessed).
+(defn main []
+  (let [seed-ptr (alloc 64)
+        gk (gen-keypair seed-ptr 64)
+        fp-ptr (alloc 64)
+        fp-n (sha256-hex (+ seed-ptr 32) 32 fp-ptr 64)
+        msg-len (mem-i32-at 0 0)
+        sig-ptr (alloc 64)
+        sig-n (sign seed-ptr 8 msg-len sig-ptr 64)
+        pairs-ptr (alloc 256)
+        c1 (copy-bytes! (str-ptr "type\teip4361\nfingerprint\t") pairs-ptr 0 25)
+        c2 (copy-bytes! fp-ptr (+ pairs-ptr 25) 0 64)
+        c3 (copy-bytes! (str-ptr "\nsig\t") (+ pairs-ptr 89) 0 5)
+        c4 (hex-encode! sig-ptr (+ pairs-ptr 94) 0 64)
+        c5 (copy-bytes! (str-ptr "\n") (+ pairs-ptr 222) 0 1)
+        out-ptr (alloc 512)]
+    (cbor-encode pairs-ptr 223 out-ptr 512)))
