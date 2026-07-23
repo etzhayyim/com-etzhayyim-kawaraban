@@ -453,3 +453,203 @@ bump.
   createSession/createRecord call against the real `pds.aozora.app` — both
   explicitly deferred to a future session with the repo owner's
   case-by-case sign-off, per this session's own task constraints.
+
+## Phase G — connected orchestrator (com-junkawasaki/root, ADR-2607231404)
+
+Phase F's own follow-up list above said the four network-touching modules
+were "not yet wired into a single call chain". Phase G is that wiring:
+`src/kawaraban/wasm_orchestrator.clj` connects RSS/Atom fetch
+(`src/kawaraban/methods/live_fetch.cljc`, **unchanged**) → G1/G3/G4/G8
+charter gate (`src/kawaraban/methods/ingest.cljc`, **unchanged**) →
+per-outlet identity → CACAO signing → nested wire encoding → createSession
+→ createRecord, all via the wasm modules above, and actually **runs** it
+(`clojure -M:test` / the new `:wasm-orchestrator` alias), not just links
+each module in isolation. Read that namespace's own docstring for the
+full detail; this section is a summary + the three honest findings it
+surfaced.
+
+### New module: `identity_sign.kotoba`
+
+`cacao_self_mint.kotoba`'s `main` unconditionally calls `gen-keypair` —
+every invocation mints a **fresh** random Ed25519 seed. That is exactly
+right for Phase B's own proof ("the keygen→sign chain runs as real wasm")
+but useless for an orchestrator that needs to sign with the **same**
+persisted per-outlet identity across many runs (`kawaraban.mirror-actor`'s
+own `load-or-create-mirror-identity!` pattern). `kototama.tender`'s `sign`
+host-import (`(sign seed-ptr msg-ptr msg-len sig-ptr sig-cap)`) reads
+whatever 32 raw bytes are at `seed-ptr` at call time — it does not care
+whether those bytes came from this call's own `gen-keypair` or were
+host-written before `main` ran. `identity_sign.kotoba` exploits exactly
+that: the host writes an already-persisted seed into guest memory and
+this module calls `sign` directly — it has **no `gen-keypair` import at
+all** (T3 capability confinement: `#{:identity/sign}` only). Verified via
+`test/wasm/identity_sign_test.clj`: signs with a host-supplied seed,
+verifies against `ed25519.core/verify`, is deterministic (same seed + same
+message twice → identical signature, RFC 8032), and different
+seeds/messages yield different signatures.
+
+`wasm_orchestrator.clj`'s own per-outlet identity persists to
+`.kawaraban/mirrors-wasm/<outlet-id>.edn` — **deliberately a different
+directory from** `kawaraban.mirror-actor`'s `.kawaraban/mirrors/`: that
+path's files are `{:private-b64 :public-b64}` PKCS8/X.509 DER (JVM
+`KeyFactory`-loadable); this orchestrator's are `{:seed-b64 :pub-b64
+:did}` raw Ed25519 seed bytes (wasm `sign`-loadable). The two encodings
+are not interchangeable — reading one as the other would silently mint a
+different `did:key` for the same outlet. Both live under the repo's single
+`/.kawaraban/` `.gitignore` entry.
+
+### Finding 7 (new): dotted-path nesting cannot represent a key that itself contains a literal '.'
+
+Attempting a **byte-faithful** port of kawaraban's own
+`:news.article/*` per-article mirror-record shape into a new
+`createRecord`-shaped wasm module hit a genuinely new language-limitation
+finding: `kototama.tender`'s dotted-path nesting convention
+(`build-nested-tree`, `(str/split k #"\.")`) splits on **every** literal
+`.` in a key. Kawaraban's own field names — e.g. `":news.article/id"` —
+contain an embedded `.` as **part of the key itself** (mirroring a
+namespaced-keyword's own dot), colliding with the exact character the
+nesting convention uses as its only structural separator. There is no
+escape mechanism for a literal dot inside a dotted-path segment today, so
+`{"record": {":news.article/id": ...}}` cannot be produced this way
+without either widening `kototama` (out of scope this session) or
+renaming keys (a real wire-incompatibility, not attempted silently).
+
+Given that, `wasm_orchestrator.clj` **reuses `aozora_create_record.wasm`
+as-is** with an explicit, documented field-mapping
+(`create-record-via-wasm!`'s own docstring): `repo`/`collection`/`rkey`/
+`actor` are semantically correct (the outlet's own DID, kawaraban's real
+`"com.etzhayyim.apps.kawaraban"` collection, the article's own
+deterministic id) — only `record.analysis`/`record.cites.0.url`/
+`record.cites.1.url` are a deliberate repurpose of the
+`net.itonami.media.digest`-shaped ABI (headline → `analysis`, article url
++ outlet homepage → the two citation slots), **not** kawaraban's real
+field names. A dedicated `:news.article/*`-shaped module (once `kototama`
+grows a dot-escape mechanism, or using dot-free renamed keys) is a
+documented follow-up, not silently done here.
+
+### Finding 8 (new): the destination URL is a `.kotoba` compile-time literal, not a runtime parameter
+
+`wasm/aozora_create_session.kotoba` / `wasm/aozora_create_record.kotoba`
+each hardcode `http://127.0.0.1/xrpc/...` in their own source (finding 1:
+`.kotoba` has no runtime string construction). There is no way for the
+orchestrator to point an already-compiled `.wasm` binary at
+`https://pds.aozora.app` at runtime — "pointing at production" is a
+**recompile** (swap the literal URL, rerun the "Rebuilding" recipe above),
+producing a *different* `.wasm` file. `wasm_orchestrator.clj`'s own
+injectability is therefore at the file-path layer (`:wasm-dir` in every
+opts map): swap in a directory containing production-URL-compiled `.wasm`
+binaries and every call site picks them up unchanged, no code edit. **This
+session deliberately does not compile or ship any such production-URL
+variant** — an already-real, internet-reaching binary sitting in the repo,
+even if never invoked, is a risk not worth taking against this task's hard
+"no real network calls this session" constraint. Making a production run
+possible is a future, explicit compilation step for the repo owner.
+
+### Bug found and fixed: `cacao_wire_encode.kotoba`'s `resources` field width
+
+Wiring `mint-cacao!` against a **real** identity's real `canonical-graph`
+output surfaced a genuine memory-corruption bug in the existing
+(Phase F) `cacao_wire_encode.kotoba`: its `resources.0`/`resources.1`
+fields were declared 64 bytes wide, sized only against ADR-2607231234's
+own short golden-fixture example (`"kotoba://graph/graph-42"`, 23 bytes) —
+never checked against a **real** `canonical-graph` value's true length. A
+real graph URI (`"kotoba://graph/" + <CIDv1 base32-lower CID>`) is **74
+bytes**, exceeding the 64-byte cap. Writing 74 bytes into a declared
+64-byte host-input slot is not truncation — it silently overflows into the
+**next field's own length-header bytes**, corrupting it into a garbage i32
+that then drove `copy-bytes!`'s recursion into a JVM `StackOverflowError`
+(observed empirically, not hypothetical). Fixed by widening
+`resources.0`/`resources.1` to 100 bytes each (shifting `exp`/`sig`
+accordingly — see that file's own header comment for the exact new offset
+table) and updating `test/wasm/cacao_wire_encode_test.clj`'s
+`field-offsets` to match. The existing 264-byte byte-exact golden-fixture
+assertion is **unchanged** by this (buffer width does not affect the bytes
+written for a given real field value — only the offsets needed updating).
+
+### Bounded by design + high-water-mark
+
+`run-all!`/`run-outlet!` are bounded by `:max-outlets` (default 2) and
+`:max-articles-per-outlet` (default 1) — conservative on purpose: the
+2026-07-10 first live-ingest activation at "3 articles/outlet" already
+pushed CPU past a safe budget once (see `run_live_ingest.clj`'s own
+addendum-2 note), and this orchestrator is new, unproven code exercising a
+**separate** cost profile (wasm/Chicory instantiation per article, not
+just an HTTP POST) on top of that. The high-water-mark persists to
+`data/ingest/last-seen-wasm.edn` — **deliberately a different file** from
+`run_live_ingest.clj`'s own `data/ingest/last-seen.edn`, since the two
+orchestrators mint different per-outlet identities and must not silently
+share or clobber each other's progress marks.
+
+### Deployment (launchd)
+
+`scripts/launchd/com.etzhayyim.kawaraban.wasm-orchestrator.plist` runs
+`clojure -M:wasm-orchestrator` (→ `kawaraban.wasm-orchestrator/-main`)
+every 6 hours (`StartInterval` 21600), matching the format
+`orgs/gftdcojp/cloud-itonami/scripts/launchd/`'s 5 existing plists already
+establish. Install (same `sed` HOME/REPO-path-substitution pattern those
+files use):
+
+```sh
+sed "s|/Users/junkawasaki|$HOME|g; s|/Users/junkawasaki/github/com-junkawasaki/orgs/etzhayyim/com-etzhayyim-kawaraban|/path/to/orgs/etzhayyim/com-etzhayyim-kawaraban|g" \
+  scripts/launchd/com.etzhayyim.kawaraban.wasm-orchestrator.plist \
+  > ~/Library/LaunchAgents/com.etzhayyim.kawaraban.wasm-orchestrator.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.etzhayyim.kawaraban.wasm-orchestrator.plist
+```
+
+Logs: `~/.kawaraban/logs/wasm-orchestrator.log`. **G8 stays closed by
+default** (`KAWARABAN_ALLOW_LIVE_INGEST` unset) — until an operator
+explicitly sets it (with Council attestation, per G8), every tick is a
+harmless no-op (`fetch-outlet!` refuses before any key generation, signing,
+or network attempt happens). `KAWARABAN_WASM_MAX_OUTLETS` /
+`KAWARABAN_WASM_MAX_ARTICLES_PER_OUTLET` override the conservative
+defaults above if an operator ever needs to. **Actually running
+`launchctl bootstrap` is NOT done by this phase** — the plist is prepared,
+not installed.
+
+### Verified locally (Phase G, this PR)
+
+- `wasm/identity_sign.kotoba` compiles cleanly (150 bytes, 0 host imports
+  beyond `sign`, heap-base 2048 — this module references zero string
+  literals).
+- `wasm/cacao_wire_encode.kotoba` recompiles cleanly after the width fix
+  (975 bytes, heap-base 2048 — unchanged, since the widening only shifts
+  numeric offsets, not the literal-string region).
+- `test/kawaraban/wasm_orchestrator_test.clj` (22 tests) +
+  `test/wasm/identity_sign_test.clj` (6 tests), plus every pre-existing
+  test in this repo (cells/methods/cacao/mirror-actor/publish/publisher/
+  run-live-ingest/wasm.*): **136 tests / 295 assertions, 0 failures, 0
+  errors** (`clojure -M:test -r ".*"` from this repo's root — the default
+  `clojure -M:test` regex, `.*-test$`, only matches namespace names ending
+  in `-test`, which misses this repo's `test-*`-prefixed cells/methods
+  namespaces; `-r ".*"` runs the complete suite in one pass).
+- `clojure -M scripts/audit.clj` — `audit: ok`.
+- `clojure -M:lint` — 7 errors / 39 warnings, the exact same pre-existing
+  baseline Phase F already documented — zero new lint findings from any
+  Phase G file.
+- No internet access happened anywhere in this phase's test suite — every
+  `http-post`/`http-post-headers` call target is loopback on purpose,
+  refused by `kototama`'s unconditional SSRF denylist before any
+  connection is attempted (`publish-article!`'s own docstring: with the
+  loopback-target modules this repo ships, `createSession` always refuses,
+  so `createRecord` is architecturally never reached via the real call
+  graph in this configuration — `create-record-via-wasm!`'s own wiring is
+  independently proven with a synthetic jwt instead, matching how
+  `aozora_create_record_test.clj` already tested that module in isolation).
+
+### Follow-ups (not closure blockers for Phase G)
+
+- A dedicated `:news.article/*`-shaped `createRecord` wasm module (finding
+  7's follow-up: needs either a `kototama` dot-escape mechanism or
+  dot-free renamed keys).
+- Fold `cacao_self_mint.kotoba` + `identity_sign.kotoba` into a decision
+  about whether first-run minting should also go through some other,
+  more auditable capability boundary — not urgent (minting is a
+  one-time-per-outlet operation, not a per-post hot path).
+- Compile a production-URL variant of `aozora_create_session.kotoba` /
+  `aozora_create_record.kotoba` (finding 8) — an explicit, case-by-case
+  decision for the repo owner in a future session, never done
+  automatically.
+- Actually `launchctl bootstrap` the plist above, and (separately, with
+  the repo owner's explicit sign-off) flip `KAWARABAN_ALLOW_LIVE_INGEST`
+  on against a real, production-URL-compiled deployment — both untouched
+  by this phase.

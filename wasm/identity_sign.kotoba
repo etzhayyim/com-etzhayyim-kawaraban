@@ -1,0 +1,66 @@
+(ns kawaraban-identity-sign)
+
+;; ---------------------------------------------------------------------------
+;; kawaraban identity sign -- Phase G (com-junkawasaki/root, this session).
+;; NEW module (neither Phase B nor Phase F needed this) -- closes a gap
+;; `cacao_self_mint.kotoba` (Phase B) genuinely cannot: that module's `main`
+;; ALWAYS calls `gen-keypair` internally (a FRESH random seed every single
+;; invocation, no way to inject one), so it can only ever prove "mint a NEW
+;; identity", never "sign one more message with an identity a PRIOR run
+;; already minted and persisted to disk". `kawaraban.mirror-actor`'s own
+;; `load-or-create-mirror-identity!` pattern (which `wasm_orchestrator.clj`
+;; follows, see that namespace) needs exactly the latter: mint ONCE per
+;; outlet, then sign MANY times thereafter (one fresh CACAO session envelope
+;; per publish) with that SAME persisted did:key -- a real per-outlet
+;; identity, not a new one every tick.
+;;
+;; kototama.tender's `sign` host-import (`(sign seed-ptr msg-ptr msg-len
+;; sig-ptr sig-cap)`) reads whatever 32 raw bytes are AT seed-ptr in guest
+;; linear memory at call time (kotoba-lang/kototama's `sign-host-fn`:
+;; `(read-bytes! instance (aget args 0) 32)`, verified by reading
+;; kototama.tender directly) -- it has no opinion on whether those bytes
+;; came from THIS call's own `gen-keypair` or were host-written before
+;; `main` ran. This module exploits exactly that: the HOST writes an
+;; already-PERSISTED seed (loaded from
+;; `.kawaraban/mirrors-wasm/<outlet-id>.edn`, see wasm_orchestrator.clj)
+;; into guest memory instead of ever calling `gen-keypair` at all -- this
+;; module's compiled import section CANNOT contain `gen_keypair` (T3
+;; capability confinement: `:identity/keypair` is simply absent from the
+;; policy this module compiles with, so `kotoba wasm emit` never emits
+;; that import at all, verifiable via `kototama.tender/inspect-module`
+;; without trusting this source file).
+;;
+;; Host input ABI (host writes BEFORE calling the 0-arity `main` --
+;; `kotoba wasm emit` rejects any parameterized main, same convention every
+;; other guest in this port uses):
+;;
+;; | field       | offset | notes                                          |
+;; |-------------|-------:|-------------------------------------------------|
+;; | seed        |      0 | raw 32 bytes, the persisted Ed25519 private key  |
+;; |             |        | seed -- NEVER logged/printed by the host, same   |
+;; |             |        | discipline `.kawaraban/identity.edn`'s own       |
+;; |             |        | gitignore already keeps                          |
+;; | msg-len     |     32 | i32, length of the message text at offset 40     |
+;; | message     |     40 | UTF-8 text, msg-len <= 900 (keeps this module's   |
+;; |             |        | ENTIRE host-input region inside [0, 1024) -- the |
+;; |             |        | compiler's own literal-string region always      |
+;; |             |        | starts at a fixed offset 1024, see               |
+;; |             |        | wasm/cacao_wire_encode.kotoba's header comment   |
+;; |             |        | for why that boundary is always safe input       |
+;; |             |        | territory regardless of this module's own       |
+;; |             |        | (zero, in this module) literal-string usage)     |
+;;
+;; Output: `main` returns `sign`'s bytes-written count (64, or -1 on any
+;; host-side failure/quota denial -- the universal in-band fail-closed
+;; convention every other module in this port uses). The caller reads the
+;; raw 64-byte Ed25519 signature back from address `heap-base` (this
+;; module's FIRST and ONLY `alloc` call, so its address is exactly this
+;; compiled module's own `:kotoba.wasm/heap-base` -- 2048, since this
+;; module references ZERO string literals, so the compiler's memory-layout
+;; leaves the literal-string region at [1024, 1024) empty and heap-base
+;; falls back to its own minimum, 2048 -- verified against a real compile,
+;; not hand-guessed, see wasm/README.md).
+(defn main []
+  (let [msg-len (mem-i32-at 32 0)
+        sig-ptr (alloc 64)]
+    (sign 0 40 msg-len sig-ptr 64)))

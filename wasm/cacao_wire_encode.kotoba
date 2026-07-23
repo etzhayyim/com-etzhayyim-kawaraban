@@ -58,17 +58,40 @@
 ;; | nonce        |        216 |         224 |        40 |
 ;; | domain       |        272 |         280 |        32 |
 ;; | version      |        320 |         328 |         8 |
-;; | resources.0  |        344 |         352 |        64 |
-;; | resources.1  |        424 |         432 |        64 |
-;; | exp          |        504 |         512 |        40 |
-;; | sig (s.s)    |        560 |         568 |       200 |
+;; | resources.0  |        344 |         352 |       100 |
+;; | resources.1  |        460 |         468 |       100 |
+;; | exp          |        576 |         584 |        40 |
+;; | sig (s.s)    |        632 |         640 |       200 |
 ;;
 ;; (`kawaraban.cacao/grant->resources` always returns EXACTLY 2 resource
 ;; URIs -- `[op-uri graph-uri]` -- for every real grant, so a fixed
 ;; 2-element `resources` array is a genuine domain invariant here, not an
 ;; arbitrary port-time simplification. `:statement` is omitted entirely --
 ;; `kawaraban.aozora/mint-session!`'s real call site never passes one
-;; either, matching ADR-2607231234's own golden-fixture parameter choice.)
+;; either, matching ADR-2607231234's own golden-fixture parameter choice.
+;;
+;; [Phase G, com-junkawasaki/root, this session] resources.0/resources.1
+;; widened from 64 -> 100 bytes (shifting exp/sig accordingly) --
+;; `kawaraban.wasm_orchestrator`'s real `canonical-graph` output is a
+;; CIDv1/dag-cbor/sha2-256 base32-lower multibase (36 raw bytes -> 58
+;; base32 chars + 1 'b' prefix = 59 chars), so a REAL `resources.1` value
+;; (\"kotoba://graph/\" + that CID, 15 + 59 = 74 bytes) genuinely EXCEEDED
+;; the original 64-byte cap this module shipped with (which was sized only
+;; against ADR-2607231234's own golden-fixture example, \"kotoba://graph/
+;; graph-42\", 23 bytes -- never checked against a REAL graph-cid's true
+;; length). Writing a 74-byte value into a declared-64-byte host-input
+;; slot silently overflows past its own [text, text+64) bound into the
+;; NEXT field's length-header bytes -- this is NOT a truncation, it is
+;; memory corruption (a garbage length value for whatever field follows,
+;; which can then drive `copy-bytes!`'s own recursion count into the
+;; billions -- observed empirically as a JVM StackOverflowError while
+;; wiring `wasm_orchestrator.clj`'s `mint-cacao!` end-to-end against a
+;; REAL identity's REAL canonical-graph value, not a hypothetical). 100
+;; bytes leaves real margin above the 74-byte real-world value. The 264-
+;; byte golden-fixture assertion in test/wasm/cacao_wire_encode_test.clj
+;; is UNCHANGED by this widening (buffer WIDTH does not affect the ACTUAL
+;; bytes written for a given real field value -- only the field-offsets
+;; map in that test file needed updating to match.)
 ;;
 ;; Output: `main` returns `cbor-encode`'s bytes-written count (i32, or -1
 ;; on any host-side failure). The CBOR bytes are a definite-length 3-entry
@@ -90,9 +113,9 @@
         domain-len (mem-i32-at 272 0)
         version-len (mem-i32-at 320 0)
         res0-len (mem-i32-at 344 0)
-        res1-len (mem-i32-at 424 0)
-        exp-len (mem-i32-at 504 0)
-        sig-len (mem-i32-at 560 0)
+        res1-len (mem-i32-at 460 0)
+        exp-len (mem-i32-at 576 0)
+        sig-len (mem-i32-at 632 0)
         pairs-ptr (alloc 2048)
         n0 (copy-bytes! (str-ptr "h.t\teip4361\np.iss\t") pairs-ptr 0 18)
         n1 (copy-bytes! 8 (+ pairs-ptr n0) 0 iss-len)
@@ -123,15 +146,15 @@
         p13 (+ p12 n13)
         n14 (copy-bytes! (str-ptr "\np.resources.1\t") (+ pairs-ptr p13) 0 15)
         p14 (+ p13 n14)
-        n15 (copy-bytes! 432 (+ pairs-ptr p14) 0 res1-len)
+        n15 (copy-bytes! 468 (+ pairs-ptr p14) 0 res1-len)
         p15 (+ p14 n15)
         n16 (copy-bytes! (str-ptr "\np.exp\t") (+ pairs-ptr p15) 0 7)
         p16 (+ p15 n16)
-        n17 (copy-bytes! 512 (+ pairs-ptr p16) 0 exp-len)
+        n17 (copy-bytes! 584 (+ pairs-ptr p16) 0 exp-len)
         p17 (+ p16 n17)
         n18 (copy-bytes! (str-ptr "\ns.t\tEdDSA\ns.s\t") (+ pairs-ptr p17) 0 15)
         p18 (+ p17 n18)
-        n19 (copy-bytes! 568 (+ pairs-ptr p18) 0 sig-len)
+        n19 (copy-bytes! 640 (+ pairs-ptr p18) 0 sig-len)
         p19 (+ p18 n19)
         out-ptr (alloc 512)]
     (cbor-encode pairs-ptr p19 out-ptr 512)))
