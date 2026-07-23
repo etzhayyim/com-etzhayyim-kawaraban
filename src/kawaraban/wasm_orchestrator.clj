@@ -432,6 +432,13 @@
   {:repo 0 :collection 80 :rkey 160 :analysis 240 :cites0 384 :cites1 464
    :created 544 :actor 600 :jwt 680})
 
+;; wasm/aozora_create_record.kotoba's own ABI table (each field's declared
+;; max WIDTH, matching that file's header comment) -- now enforced here via
+;; `write-record-field!`'s required max-bytes, not merely documented.
+(def ^:private record-field-widths
+  {:repo 64 :collection 64 :rkey 64 :analysis 128 :cites0 64 :cites1 64
+   :created 40 :actor 64 :jwt 300})
+
 (defn truncate-utf8
   "Byte-safe truncation to `max-bytes` UTF-8 bytes, returning
   {:text :truncated?} -- NEVER a silent cut (wasm/README.md's own
@@ -449,10 +456,26 @@
                     (recur (dec i))))]
         {:text (String. bs 0 cut "UTF-8") :truncated? true}))))
 
-(defn- write-record-field! [memory offset ^String text]
-  (let [bs (.getBytes (or text "") "UTF-8")]
+(defn- write-record-field!
+  "[com-junkawasaki/root \"Phase H\" go-live diagnostic, 2026-07-23]:
+  MAX-BYTES is now REQUIRED and enforced via `truncate-utf8` before the
+  write, not left to each call site to remember. A real go-live attempt
+  against the live PDS found a genuine data-corruption bug: `cites0`/
+  `cites1` (real article URLs, up to ~80 bytes with RSS tracking params)
+  were written RAW, with no bound against this field's own 64-byte ABI
+  width -- the wasm guest's own `copy-bytes!` blindly trusts whatever
+  length the host claims, so an oversized write corrupted the NEXT
+  field's length header (observed live: a real BBC URL truncated
+  mid-query-string with embedded control bytes in the published record).
+  `analysis` already correctly truncated via a separate inline call
+  (namespace docstring's own field-mapping table); this makes the SAME
+  discipline structural for every field, not opt-in per call site."
+  [memory offset max-bytes ^String text]
+  (let [{:keys [text truncated?]} (truncate-utf8 (or text "") max-bytes)
+        bs (.getBytes ^String text "UTF-8")]
     (.writeI32 memory offset (count bs))
-    (.write memory (+ offset 8) bs 0 (count bs))))
+    (.write memory (+ offset 8) bs 0 (count bs))
+    truncated?))
 
 (defn create-record-via-wasm!
   "Publishes ONE article's data through wasm/aozora_create_record.wasm.
@@ -493,18 +516,41 @@
   (let [instance (tender/instantiate (wasm-bytes (wasm-path wasm-dir "aozora_create_record"))
                                      [:http-post-headers :json-encode] (record-caps))
         memory (.memory instance)
-        {:keys [text truncated?]} (truncate-utf8 (get record ":news.article/headline" "") 128)]
-    (write-record-field! memory (:repo record-field-offsets) (:did identity))
-    (write-record-field! memory (:collection record-field-offsets) publisher/collection)
-    (write-record-field! memory (:rkey record-field-offsets) (get record ":news.article/id"))
-    (write-record-field! memory (:analysis record-field-offsets) text)
-    (write-record-field! memory (:cites0 record-field-offsets) (get record ":news.article/url" ""))
-    (write-record-field! memory (:cites1 record-field-offsets) (get outlet :homepage ""))
-    (write-record-field! memory (:created record-field-offsets) (str (Instant/now)))
-    (write-record-field! memory (:actor record-field-offsets) (:did identity))
-    (write-record-field! memory (:jwt record-field-offsets) jwt)
-    (let [written (tender/call-main instance)]
-      {:written written :refused (= -1 written) :headline-truncated? truncated?})))
+        w! (fn [field text] (write-record-field! memory (get record-field-offsets field)
+                                                 (get record-field-widths field) text))
+        repo-truncated? (w! :repo (:did identity))
+        collection-truncated? (w! :collection publisher/collection)
+        rkey-truncated? (w! :rkey (get record ":news.article/id"))
+        analysis-truncated? (w! :analysis (get record ":news.article/headline" ""))
+        cites0-truncated? (w! :cites0 (get record ":news.article/url" ""))
+        cites1-truncated? (w! :cites1 (get outlet :homepage ""))
+        created-truncated? (w! :created (str (Instant/now)))
+        actor-truncated? (w! :actor (:did identity))
+        jwt-truncated? (w! :jwt jwt)
+        written (tender/call-main instance)]
+    {:written written
+     :refused (= -1 written)
+     ;; NOTE: `identity` here is a fn PARAMETER (the outlet's identity
+     ;; map, e.g. {:did ... :seed ...}), which shadows clojure.core/
+     ;; identity within this function's whole body -- `(keep identity
+     ;; ...)` would silently resolve to `(keep <identity-map> ...)`,
+     ;; treating each vector element as a KEY LOOKUP into that map
+     ;; (always nil, since none of :repo/:collection/etc. are keys the
+     ;; identity map actually has) and returning an always-empty
+     ;; result. `remove nil?` is the shadow-safe equivalent (this bug
+     ;; was caught by this fix's own new regression test failing
+     ;; despite write-record-field! itself working correctly in
+     ;; isolation -- see debug trail in PR description).
+     :truncated-fields (vec (remove nil?
+                                     [(when repo-truncated? :repo)
+                                      (when collection-truncated? :collection)
+                                      (when rkey-truncated? :rkey)
+                                      (when analysis-truncated? :analysis)
+                                      (when cites0-truncated? :cites0)
+                                      (when cites1-truncated? :cites1)
+                                      (when created-truncated? :created)
+                                      (when actor-truncated? :actor)
+                                      (when jwt-truncated? :jwt)]))}))
 
 ;; ============================================================================
 ;; Per-outlet identity persistence
