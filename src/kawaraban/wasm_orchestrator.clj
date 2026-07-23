@@ -389,11 +389,30 @@
     (vec (remove str/blank? (str/split v #",")))
     []))
 
+;; ── HTTP timeout (com-junkawasaki/root, 2026-07-23 reliability follow-up) ────
+;;
+;; kototama's default HostCaps timeout (5s connect + 5s request, see
+;; kotoba-lang/kototama ADR-2607231955) is byte-identical to what this repo
+;; already relied on implicitly before that ADR -- but the actual go-live
+;; run against pds.aozora.app repeatedly hit this ceiling for requests that
+;; DID go on to succeed (confirmed via a 30s raw HttpClient retry; the
+;; launchd daemon's own log shows real \"request timed out\" entries, not a
+;; hypothetical concern). 20000ms is this repo's OWN chosen default (not
+;; kototama's global default, which stays 5000ms for every other caller) --
+;; generous enough for pds.aozora.app's observed occasional slowness,
+;; overridable via KAWARABAN_WASM_HTTP_TIMEOUT_MS for further tuning.
+(defn- http-timeout-ms []
+  (if-let [v (System/getenv "KAWARABAN_WASM_HTTP_TIMEOUT_MS")]
+    (Integer/parseInt v)
+    20000))
+
 ;; ── createSession (aozora_create_session.wasm) ───────────────────────────────
 
 (defn- session-caps []
   (contract/host-caps {:grants [:http-post :json-encode]
-                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)}}))
+                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)
+                                :http-connect-timeout-ms (http-timeout-ms)
+                                :http-request-timeout-ms (http-timeout-ms)}}))
 
 (defn create-session-via-wasm!
   "POSTs `cacao-b64` as `{\"cacao\":\"...\"}` via
@@ -426,7 +445,9 @@
 
 (defn- record-caps []
   (contract/host-caps {:grants [:http-post-headers :json-encode]
-                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)}}))
+                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)
+                                :http-connect-timeout-ms (http-timeout-ms)
+                                :http-request-timeout-ms (http-timeout-ms)}}))
 
 (def ^:private record-field-offsets
   {:repo 0 :collection 80 :rkey 160 :analysis 240 :cites0 384 :cites1 464
@@ -565,7 +586,9 @@
 
 (defn- delete-record-caps []
   (contract/host-caps {:grants [:http-post-headers :json-encode]
-                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)}}))
+                       :limits {:max-http-posts 1 :allowed-url-prefixes (pds-allowlist)
+                                :http-connect-timeout-ms (http-timeout-ms)
+                                :http-request-timeout-ms (http-timeout-ms)}}))
 
 (defn delete-record-via-wasm!
   "Deletes ONE record (by REPO/COLLECTION/RKEY) via
@@ -697,7 +720,35 @@
         {:ok false :stage :error :error (ex-message e) :article-id article-id}))))
 
 (defn- new-since [records mark] (filter #(> (get % ":news.article/as-of" 0) mark) records))
-(defn- max-as-of [records mark] (reduce max mark (map #(get % ":news.article/as-of" 0) records)))
+
+(defn- published-mark
+  "[com-junkawasaki/root, 2026-07-23 reliability follow-up] MARK only
+  advances past articles that were ACTUALLY PUBLISHED this run --
+  articles that were merely fetched/gate-passed but never attempted
+  (beyond the :max-articles-per-outlet bound), OR attempted and failed
+  (session/record refused, or errored -- e.g. a transient
+  \"request timed out\" against pds.aozora.app, observed for real in this
+  orchestrator's own launchd daemon log, not hypothetical) stay ELIGIBLE
+  for the next tick, never silently consumed.
+
+  This is a DELIBERATE DEPARTURE from `run_live_ingest.clj`'s own
+  pre-existing `(max-as-of ok mark)` policy (which advances past EVERY
+  gate-passed record regardless of publish outcome) -- that policy's own
+  docstring claims a skipped record \"stays eligible next tick via the
+  normal window overlap\", but that claim does not actually hold: once an
+  article's `as-of` is subsumed into `mark`, `new-since`'s `(> as-of
+  mark)` filter excludes it on every future tick even if the same
+  article is still present in a later fetch, so a transient publish
+  failure permanently drops that article. This orchestrator instead
+  mirrors `cloud-itonami.media.batch`'s ALREADY-correct, already-shipped
+  policy (`advance-marks`'s own docstring: mark advances only past
+  articles \"actually PICKED INTO a digest that went on to PUBLISH\") --
+  proven precedent in this same codebase, not a novel design."
+  [bounded results mark]
+  (reduce max mark
+          (keep (fn [[record result]]
+                  (when (:ok result) (get record ":news.article/as-of" 0)))
+                (map vector bounded results))))
 
 (defn process-outlet-records!
   "The wasm-path publish loop over ALREADY gate-passed records (`ok`, from
@@ -708,12 +759,12 @@
   being open without touching real env vars\" pattern: call the
   lower-level fns directly rather than the G8-gated edge). Bounded by
   `:max-articles-per-outlet` (default `default-max-articles-per-outlet`).
-  The high-water-mark (`:new-mark`) advances to the max `as-of` among
-  EVERY gate-passed record (`ok`), not just the bounded/attempted subset --
-  same policy `run_live_ingest.clj` already uses (a record excluded only
-  by the article-count bound, not by a publish failure, still stays
-  eligible next tick via the normal window overlap; nothing is silently
-  skipped forever)."
+  The high-water-mark (`:new-mark`) advances only past articles that were
+  ACTUALLY PUBLISHED this run (see `published-mark`'s own docstring for
+  why this deliberately departs from `run_live_ingest.clj`'s own
+  \"advance regardless of publish outcome\" policy) -- an unattempted
+  (bound-excluded) or failed-to-publish article stays genuinely eligible
+  for the next tick, not merely claimed to be."
   [outlet ok mark opts]
   (let [fresh (new-since ok mark)
         bounded (vec (take (get opts :max-articles-per-outlet default-max-articles-per-outlet) fresh))
@@ -727,7 +778,7 @@
      :session-refused (count (filter #(= :session (:stage %)) results))
      :record-refused (count (filter #(= :record (:stage %)) results))
      :errors (mapv :error (filter #(= :error (:stage %)) results))
-     :new-mark (max-as-of ok mark)}))
+     :new-mark (published-mark bounded results mark)}))
 
 (defn run-outlet!
   "One outlet's G8-gated fetch -> gate -> wasm-publish pass. `mark` is this
