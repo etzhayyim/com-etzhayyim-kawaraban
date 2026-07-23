@@ -137,9 +137,15 @@
         h0 (copy-bytes! (str-ptr "Content-Type\tapplication/json\nAuthorization\tBearer ") headers-ptr 0 51)
         h1 (copy-bytes! 688 (+ headers-ptr h0) 0 jwt-len)
         headers-n (+ h0 h1)
-        resp-ptr (alloc 512)]
+        ;; [com-junkawasaki/root "Phase H" go-live diagnostic, 2026-07-23]
+        ;; widened 512 -> 2048, same fix + same reasoning as
+        ;; aozora_create_session.kotoba's resp-ptr (write-bytes!'s (if (> n
+        ;; cap) -1 ...) silently indistinguishable-from-refused on overflow).
+        ;; resp-ptr is the LAST allocation, so this does not shift
+        ;; pairs-ptr/body-ptr/headers-ptr's offsets.
+        resp-ptr (alloc 2048)]
     (http-post-headers (str-ptr "https://pds.aozora.app/xrpc/com.atproto.repo.createRecord")
                         (str-len "https://pds.aozora.app/xrpc/com.atproto.repo.createRecord")
                         body-ptr body-n
                         headers-ptr headers-n
-                        resp-ptr 512)))
+                        resp-ptr 2048)))

@@ -413,7 +413,8 @@
     (.write memory 8 cacao-bytes 0 (count cacao-bytes))
     (let [written (tender/call-main instance)]
       ;; resp-ptr@6296 -- this module's alloc order (pairs-ptr@2048/2048B ->
-      ;; body-ptr@4096/2200B -> resp-ptr@6296/512B), same layout
+      ;; body-ptr@4096/2200B -> resp-ptr@6296/2048B, widened from 512B per
+      ;; Phase H go-live diagnostic), same layout
       ;; test/wasm/aozora_create_session_test.clj documents; `written` IS the
       ;; response byte count http-post wrote there (kototama.tender's
       ;; http-post-host-fn docstring: \"-> bytes-written|-1\"), not a guess.
