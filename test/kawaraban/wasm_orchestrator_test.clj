@@ -3,12 +3,17 @@
   com-junkawasaki/root, this session). Proves the fetch -> gate ->
   wasm-sign -> wasm-post pipeline actually connects end-to-end through
   REAL wasm/Chicory instantiation (kototama.tender), with NO real network
-  I/O anywhere in this suite -- every wasm module this repo ships targets
-  `http://127.0.0.1/...` (a compile-time literal, see
-  wasm_orchestrator.clj's own namespace docstring finding 3), so
-  `kototama.tender`'s unconditional SSRF denylist refuses every attempted
-  POST before any connection happens, exactly like every existing
-  test/wasm/*_test.clj in this repo.
+  I/O anywhere in this suite. [Phase H, com-junkawasaki/root, 2026-07-23]:
+  every wasm module this repo ships now targets the REAL
+  `https://pds.aozora.app/xrpc/...` (see wasm_orchestrator.clj's own
+  namespace docstring finding 3's Phase H update), so kototama's
+  unconditional SSRF denylist alone no longer refuses these calls (a
+  public HTTPS host is not loopback/private/link-local) -- this suite
+  never sets KAWARABAN_WASM_PDS_ALLOWLIST, so `pds-allowlist` returns `[]`
+  and `session-caps`/`record-caps`' explicit `:allowed-url-prefixes []`
+  refuses every attempted POST before any connection happens (fail-closed
+  by default), exactly like every existing test/wasm/*_test.clj in this
+  repo now does for the same reason.
 
   Two halves, deliberately separated (matching
   test/kawaraban/methods/test_live_fetch.cljc's own
@@ -156,12 +161,12 @@
           (is (= 0xA3 (bit-and (int (aget cbor 0)) 0xff)))))
       (finally (delete-test-identity!)))))
 
-(deftest test-create-session-via-wasm-loopback-is-refused
+(deftest test-create-session-via-wasm-real-url-refused-by-empty-allowlist
   (let [{:keys [written refused]} (sut/create-session-via-wasm! sut/default-wasm-dir "deadbeef-demo-cacao")]
     (is (true? refused))
     (is (= -1 written))))
 
-(deftest test-create-record-via-wasm-loopback-is-refused-but-fields-are-honestly-mapped
+(deftest test-create-record-via-wasm-real-url-refused-by-empty-allowlist-but-fields-are-honestly-mapped
   (testing "repo/collection/rkey/actor are semantically correct even though
             analysis/cites.* are a documented repurpose of the digest ABI
             (see create-record-via-wasm!'s own docstring)"
@@ -250,7 +255,7 @@
       (is (= 2 (:fetched result)))
       (is (= 2 (:new result)))
       (is (= 1 (:attempted result)) "bounded to 1 even though 2 articles are new")
-      (is (= 0 (:published result)) "loopback target always refuses in this repo's compiled modules")
+      (is (= 0 (:published result)) "real pds.aozora.app target still refuses without KAWARABAN_WASM_PDS_ALLOWLIST (empty-allowlist fail-closed default)")
       (is (= 1 (:session-refused result)))
       (is (pos? (:new-mark result))
           "high-water-mark still advances over ALL fetched/gate-passed records, not just the bounded/attempted subset"))

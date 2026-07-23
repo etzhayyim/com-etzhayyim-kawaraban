@@ -19,9 +19,15 @@
   could be ported at all (\"A faithful port needs BOTH gaps closed
   first\"); this test proves they now are.
 
-  This session makes NO real internet calls (task constraint): the target
-  URL is loopback on purpose, so http-post-headers is GUARANTEED to return
-  -1 (SSRF denylist)."
+  [com-junkawasaki/root \"Phase H\", 2026-07-23] wasm/aozora_create_record.kotoba
+  now targets the REAL https://pds.aozora.app (a deliberate, separate
+  recompile from this loopback-only build -- see wasm/README.md), so
+  kototama's SSRF denylist alone no longer refuses it. This session STILL
+  makes NO real internet calls: `caps` below explicitly sets
+  `:allowed-url-prefixes []` (kototama.contract/url-allowed?'s documented
+  fail-closed \"empty collection = deny all\" semantics, NOT the `nil` =
+  unrestricted default), so http-post-headers is GUARANTEED to return -1
+  regardless of which real host the literal names."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [kototama.contract :as contract]
@@ -32,7 +38,7 @@
 
 (def ^:private caps
   (contract/host-caps {:grants [:http-post-headers :json-encode]
-                       :limits {:max-http-posts 1}}))
+                       :limits {:max-http-posts 1 :allowed-url-prefixes []}}))
 
 ;; offset layout mirrors wasm/aozora_create_record.kotoba's own ABI table.
 (def ^:private field-offsets
@@ -98,11 +104,11 @@
 (deftest golden-fixture-is-actually-297-bytes
   (is (= 297 (count (.getBytes golden-json-body "UTF-8")))))
 
-(deftest aozora-create-record-loopback-is-refused
-  (testing "http-post-headers' unconditional SSRF denylist blocks the
-            loopback destination -- real compiler+tender LINKAGE + real
-            guard EXECUTION, not a live network round trip (no internet
-            access in this session)"
+(deftest aozora-create-record-real-url-is-refused-by-empty-allowlist
+  (testing "with `:allowed-url-prefixes []`, the now-real pds.aozora.app
+            destination is refused before any HttpClient.send -- real
+            compiler+tender LINKAGE + real allowlist-guard EXECUTION, not a
+            live network round trip (no internet access in this session)"
     (let [{:keys [written]} (run-create-record golden-fields)]
       (is (= -1 written)))))
 

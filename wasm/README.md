@@ -1,4 +1,4 @@
-# wasm/ — kotoba-wasm componentization of kawaraban (Phase B, Phase F)
+# wasm/ — kotoba-wasm componentization of kawaraban (Phase B, Phase F, Phase H)
 
 This directory ports confined slices of `src/kawaraban/cacao.clj` and
 `src/kawaraban/aozora.clj` into the `.kotoba` language subset, compiled to
@@ -648,8 +648,72 @@ not installed.
 - Compile a production-URL variant of `aozora_create_session.kotoba` /
   `aozora_create_record.kotoba` (finding 8) — an explicit, case-by-case
   decision for the repo owner in a future session, never done
-  automatically.
+  automatically. **Done in Phase H, see below.**
 - Actually `launchctl bootstrap` the plist above, and (separately, with
   the repo owner's explicit sign-off) flip `KAWARABAN_ALLOW_LIVE_INGEST`
   on against a real, production-URL-compiled deployment — both untouched
-  by this phase.
+  by this phase. **`launchctl bootstrap` and the live-ingest gate are
+  STILL untouched by Phase H below — this repo's checked-in state remains
+  "safe to install, refuses to post without further explicit operator
+  action."**
+
+## Phase H — production URL recompile + real accessJwt (com-junkawasaki/root, 2026-07-23)
+
+Owner-approved, explicit, separate-from-installation step (see "Follow-ups"
+above and finding 8/finding 3's own repeated framing: "a FUTURE, explicit
+compilation step for the repo owner, not something this phase silently
+prepares un-flagged"):
+
+- **`wasm/aozora_create_session.kotoba` and `wasm/aozora_create_record.kotoba`
+  recompiled** with `https://pds.aozora.app/xrpc/com.atproto.server.
+  createSession` / `.../xrpc/com.atproto.repo.createRecord` baked in,
+  replacing the `http://127.0.0.1/...` literal every prior phase shipped.
+  The `.wasm` files checked into this directory ARE this production-URL
+  variant now (no separate `:wasm-dir` needed to reach it) — anyone who
+  wants the OLD loopback-only build back for local testing without
+  touching real infrastructure should recompile from git history at the
+  Phase F tip.
+- **Safety no longer comes from kototama's SSRF denylist** (a public HTTPS
+  host is not loopback/private/link-local, so that guard does not fire
+  against these URLs anymore). It comes ENTIRELY from an explicit
+  `:allowed-url-prefixes` allowlist, unset (`[]`, deny-all) by default:
+  `wasm_orchestrator.clj`'s `session-caps`/`record-caps` now read a new
+  `KAWARABAN_WASM_PDS_ALLOWLIST` env var (comma-separated prefixes, see
+  `pds-allowlist`) instead of leaving `:allowed-url-prefixes` unset
+  (which would have meant kototama's OWN documented `nil` = "unrestricted
+  default" semantics — a real safety regression this recompile
+  deliberately avoids). `test/wasm/aozora_create_session_test.clj` and
+  `test/wasm/aozora_create_record_test.clj` were updated to pass
+  `:allowed-url-prefixes []` explicitly (previously relying on the now-
+  moot SSRF denylist for the loopback literal) — same fail-closed
+  guarantee, different (correct) mechanism.
+- **Fixed a real bug this recompile would otherwise have exposed in
+  production**: `publish-article!` previously hardcoded
+  `jwt "unreachable-in-loopback-mode"` for the createRecord call, dead
+  code while createSession always refused against loopback. The moment
+  createSession can genuinely succeed (real URL + an operator-set
+  allowlist), that placeholder would have made createRecord authenticate
+  with a fabricated string instead of the real session token. Closed via
+  a new `extract-access-jwt` (host-side `clojure.data.json`, NOT a new
+  wasm round-trip — the response bytes are already a plain JVM string by
+  the time `create-session-via-wasm!` returns them, so re-entering wasm to
+  re-extract a field from data the host already holds would add a second
+  untested wasm module under time pressure for no confinement benefit).
+  `create-session-via-wasm!` now also returns `:response-body` (read from
+  its `resp-ptr@6296` output buffer, length = `written`, the real
+  bytes-written count `http-post` already returns — not a guess).
+- **Going live still requires TWO separate, explicit operator actions**,
+  neither performed by this recompile: (1) `KAWARABAN_ALLOW_LIVE_INGEST=1`
+  (G8, Council-attested per this repo's own charter) so `live-fetch/fetch-
+  outlet!` stops refusing every fetch, and (2) `KAWARABAN_WASM_PDS_
+  ALLOWLIST=https://pds.aozora.app` (this phase's new gate) so the wasm
+  network calls stop refusing. Neither env var is set by this PR, the
+  launchd plist, or any file in this repo — both are operator-set on the
+  actual deployment host only.
+- Verified: `clojure -M:test -r ".*"` — 136 tests / 295 assertions, 0
+  failures/errors (same count as Phase G — this recompile changed WHAT the
+  refused-by-default tests refuse, not whether they refuse). `clojure
+  -M:lint` — 7 errors / 39 warnings, identical pre-existing baseline, zero
+  new findings. No real network calls or LLM API calls were made in this
+  session (every test explicitly sets an allowlist that excludes
+  `pds.aozora.app`).

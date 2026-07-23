@@ -34,15 +34,18 @@
 ;;     `mint-session!`'s job, a separate call) -- the host writes an
 ;;     already-minted JWT into this module's memory, exactly like every
 ;;     other per-run dynamic value here.
-;;   - the target URL is loopback (`http://127.0.0.1/...`) ON PURPOSE --
-;;     this session (com-junkawasaki/root Phase F) makes NO real internet
-;;     calls. kototama's `blocked-http-post-destination?` denylist refuses
-;;     ANY loopback/private/link-local/metadata destination unconditionally
-;;     (the SAME guard `http-post-headers` reuses from `http-post`), so
-;;     this module's call is GUARANTEED to return -1 -- the same proof
-;;     shape every prior sibling module in this port already established
-;;     (real compiler+tender LINKAGE + real SSRF-guard EXECUTION, not a
-;;     live network round trip).
+;;   - [com-junkawasaki/root "Phase H", 2026-07-23] the target URL now
+;;     points at the REAL `https://pds.aozora.app` -- a deliberate, separate
+;;     recompile from Phase B/F's loopback build (never a side effect of an
+;;     env-var flip; see wasm/README.md). Safety no longer comes from
+;;     kototama's `blocked-http-post-destination?` SSRF denylist (a public
+;;     HTTPS host is not loopback/private/link-local, so that guard does
+;;     NOT refuse this URL) -- it comes ENTIRELY from the caller-supplied
+;;     `:allowed-url-prefixes` allowlist kototama's RuntimeLimits already
+;;     requires (empty/non-matching allowlist = refused before any
+;;     `HttpClient.send`). Tests in this repo pass an allowlist that does
+;;     NOT include `pds.aozora.app`, so they still make zero real network
+;;     calls despite the literal now being a real host.
 ;;
 ;; Host input ABI (host writes BEFORE calling the 0-arity `main`). Every
 ;; field is an (i32 length, UTF-8 text) pair; all offsets stay inside
@@ -68,8 +71,9 @@
 ;; layout without widening it, the same class of honest constraint
 ;; `cacao_self_mint.kotoba`'s `msg-len <= 2000` already documents.)
 ;;
-;; Output: `main` returns `http-post-headers`' result -- ALWAYS `-1` in
-;; this repo's test suite (loopback SSRF denial, see above). The JSON body
+;; Output: `main` returns `http-post-headers`' result -- `-1` unless the
+;; caller's RuntimeLimits allowlist explicitly includes `pds.aozora.app`
+;; (see above). The JSON body
 ;; `json-encode` built (readable back from `body-ptr` for that many bytes)
 ;; is BYTE-EXACT wire-compatible with `cloud_itonami.media.aozora/
 ;; create-record!`'s real `cheshire.core/generate-string`-produced request
@@ -134,8 +138,8 @@
         h1 (copy-bytes! 688 (+ headers-ptr h0) 0 jwt-len)
         headers-n (+ h0 h1)
         resp-ptr (alloc 512)]
-    (http-post-headers (str-ptr "http://127.0.0.1/xrpc/com.atproto.repo.createRecord")
-                        (str-len "http://127.0.0.1/xrpc/com.atproto.repo.createRecord")
+    (http-post-headers (str-ptr "https://pds.aozora.app/xrpc/com.atproto.repo.createRecord")
+                        (str-len "https://pds.aozora.app/xrpc/com.atproto.repo.createRecord")
                         body-ptr body-n
                         headers-ptr headers-n
                         resp-ptr 512)))

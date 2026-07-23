@@ -7,8 +7,16 @@
   proof shape kototama's own kotoba-compiled-http-fetch.wasm fixture
   established for http-fetch (ADR-2607230943 second wave).
 
-  This session makes NO real internet calls (task constraint): the target
-  URL is loopback on purpose, so http-post is GUARANTEED to return -1."
+  [com-junkawasaki/root \"Phase H\", 2026-07-23] wasm/aozora_create_session.kotoba
+  now targets the REAL https://pds.aozora.app (a deliberate, separate
+  recompile from this loopback-only build -- see wasm/README.md), so
+  kototama's SSRF denylist alone no longer refuses it (a public HTTPS host
+  is not loopback/private/link-local). This session STILL makes NO real
+  internet calls: `caps` below explicitly sets `:allowed-url-prefixes []`
+  (kototama.contract/url-allowed?'s documented fail-closed \"empty
+  collection = deny all\" semantics, NOT the `nil` = unrestricted default),
+  so http-post is GUARANTEED to return -1 regardless of which real host the
+  literal names."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [kototama.contract :as contract]
@@ -19,7 +27,7 @@
 
 (def ^:private caps
   (contract/host-caps {:grants [:http-post :json-encode]
-                        :limits {:max-http-posts 1}}))
+                        :limits {:max-http-posts 1 :allowed-url-prefixes []}}))
 
 (defn- run-create-session [cacao-text]
   (let [instance (tender/instantiate (wasm-bytes) [:http-post :json-encode] caps)
@@ -36,11 +44,11 @@
                    instance 4096
                    (count (str "{\"cacao\":\"" cacao-text "\"}")))})))
 
-(deftest aozora-create-session-loopback-is-refused
-  (testing "http-post's unconditional SSRF denylist blocks the loopback
-            destination -- real compiler+tender LINKAGE + real guard
-            EXECUTION, not a live network round trip (no internet access in
-            this session, matching Phase A's http-fetch fixture proof)"
+(deftest aozora-create-session-real-url-is-refused-by-empty-allowlist
+  (testing "with `:allowed-url-prefixes []`, the now-real pds.aozora.app
+            destination is refused before any HttpClient.send -- real
+            compiler+tender LINKAGE + real allowlist-guard EXECUTION, not a
+            live network round trip (no internet access in this session)"
     (let [{:keys [written]} (run-create-session "deadbeef-demo-cacao-blob")]
       (is (= -1 written)))))
 
