@@ -15,15 +15,17 @@
                       ;; componentization of kawaraban.cacao/kawaraban.aozora
                       ;; runs as a real Chicory-hosted WASM guest, not just as
                       ;; JVM Clojure. Pinned to kotoba-lang/kototama main
-                      ;; post-PR#49 (http-fetch/cbor-encode/json-encode/
-                      ;; json-extract-field capabilities, ADR-2607231022).
+                      ;; post-PR#50 (http-post-headers + cbor/json dotted-path
+                      ;; nesting, ADR-2607231234 "Phase E" -- bumped from
+                      ;; post-PR#49 for Phase F's cacao_wire_encode.kotoba /
+                      ;; aozora_create_record.kotoba, which need both).
                       ;; Same test-only local/root convention
                       ;; cloud-itonami-isic-6310's deps.edn established for
                       ;; this exact pattern -- git/sha here instead of
                       ;; local/root since this repo is not west-managed
                       ;; alongside kotoba-lang/kototama.
                       io.github.kotoba-lang/kototama
-                      {:git/sha "0ccdafc6f2c5cff91c5a02f7bc4845778fcdacee"}}
+                      {:git/sha "38613c0808dbb27c782b616299138ec687509f2b"}}
          :main-opts ["-m" "cognitect.test-runner"]}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
          :main-opts    ["-m" "clj-kondo.main" "--lint" "src" "test" "--fail-level" "error"]}
